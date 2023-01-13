@@ -12,7 +12,8 @@
     "clear": "rm -rf build/",
     "build:types": "npm run clear && tsc -b ./tsconfig.types.json",
     "build": "npm run build:types && rollup -c --bundleConfigAsCjs",
-    "dev": "npm run build:types && rollup -w -c --bundleConfigAsCjs"
+    "dev": "npm run build:types && rollup -w -c --bundleConfigAsCjs",
+    "commitlint": "commitlint --config commitlint.config.js -e -V"
   },
   "lint-staged": {
     "*.{js,jsx,less,md,json}": [
@@ -37,6 +38,8 @@
     "@babel/core": "^7.20.12",
     "@babel/plugin-transform-runtime": "^7.19.6",
     "@babel/preset-env": "^7.20.2",
+    "@commitlint/cli": "^17.4.2",
+    "@commitlint/config-conventional": "^17.4.2",
     "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-json": "^6.0.0",

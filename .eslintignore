@@ -18,3 +18,4 @@ next.config.js
 /cypress
 babel.config.js
 /build
+commitlint.config.js
