@@ -1,0 +1,22 @@
+{
+  "extends": [
+    "plugin:prettier/recommended",
+    "plugin:react-hooks/recommended",
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "plugins": [
+    "react-hooks",
+    "@typescript-eslint"
+  ],
+  "rules": {
+    "react/display-name": "off",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"// <--- THIS IS THE NEW RULE
+  },
+  "env": {
+    "es6": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "root": true
+}
