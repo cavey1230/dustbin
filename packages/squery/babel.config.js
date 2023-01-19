@@ -6,6 +6,6 @@ module.exports = {
         modules: false,
       },
     ],
+    ['@babel/preset-react'],
   ],
-  plugins: [['@babel/plugin-transform-runtime']],
 };

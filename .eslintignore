@@ -19,3 +19,4 @@ next.config.js
 babel.config.js
 /build
 commitlint.config.js
+rollup.config.js

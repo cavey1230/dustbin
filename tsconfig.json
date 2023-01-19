@@ -19,14 +19,14 @@
     "moduleResolution": "node",
     "baseUrl": "./",
     "paths": {
-      "@/*": [
-        "src/*"
+      "@/squery/src/*": [
+        "packages/squery/src/*"
       ]
     },
     "types": [],
   },
   "include": [
-    "src/*.ts",
-    "src/types.ts"
+    "packages/squery/src/*.ts",
+    "packages/squery/src/types.ts"
   ],
 }
