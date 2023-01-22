@@ -36,14 +36,15 @@ export class SimpleQueryStore {
           (store, item) => {
             if (!['SIMPLE_QUERY_KEY', 'CREATE_TIME'].includes(item)) {
               store[item] = findRequestParams?.last?.[item];
-              return store;
             }
+            return store;
           },
           {} as CacheParamsType
         ),
         dataWithWrapper: findRequestParams?.last,
       };
     }
+    return {};
   }
 
   throwTips(tips: string) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import deepComparison from '../utils/deepComparison';
 import { SimpleQueryStore } from '../store';
 
@@ -10,33 +10,20 @@ type UseWatchStateInitializeOptions = {
   error: boolean;
 };
 
-type QueryOptions<T, CD> = {
-  loop?: boolean;
-  loopInterval?: number;
-  cacheKey?: string;
-  freshTime?: number;
-  retry?: boolean;
-  retryCount?: number;
-  params?: T;
-  initializeData?: CD;
-  manual?: boolean;
-  use?: [];
-};
-
-type ChildrenPartial<D> = {
+export type ChildrenPartial<D> = {
   [K in keyof D]?: Partial<D[K]> extends Record<string, any>
     ? ChildrenPartial<D[K]>
     : Partial<D[K]>;
 };
 
-const useInitializeStore = () => {
+export const useInitializeStore = () => {
   if (!globalStore) {
     globalStore = new SimpleQueryStore();
   }
   return useRef(globalStore);
 };
 
-const useWatchState = <T, D, E>(options: {
+export const useWatchState = <T, D, E>(options: {
   initializeOptions?: UseWatchStateInitializeOptions;
   keys?: string;
   params?: T;
@@ -80,14 +67,13 @@ const useWatchState = <T, D, E>(options: {
         }
       }
       if (haveBeenUsedRef.current.loading && type === 'loading') {
-        loading !== combined.data && setLoading(combined.data as boolean);
+        setLoading(combined.data as boolean);
       }
       if (haveBeenUsedRef.current.error && type === 'error') {
-        const judge = deepComparison(error, combined.data);
-        !judge && setError(combined.data as E);
+        setError(combined.data as E);
       }
     },
-    [data, error, loading, options]
+    [data, options]
   );
 
   return {
@@ -100,87 +86,3 @@ const useWatchState = <T, D, E>(options: {
     haveBeenUsedRef,
   };
 };
-
-const useSimpleQuery = <T, D, E>(
-  promiseFunc: (params?: T) => Promise<D>,
-  options: QueryOptions<T, ChildrenPartial<D>>
-) => {
-  const queryStore = useInitializeStore().current;
-
-  const [hasRequest, setHasRequest] = useState<boolean>(false);
-
-  const { data, loading, error, setState, haveBeenUsedRef } = useWatchState<
-    T,
-    D,
-    E
-  >({
-    initializeOptions: {
-      data: false,
-      loading: false,
-      error: false,
-    },
-    keys: options?.cacheKey,
-    initializeData: options?.initializeData,
-    queryStore: queryStore,
-  });
-
-  const innerRequest = useCallback(
-    (params: T) => {
-      const innerOptions = { ...(options || {}) };
-      const { cacheKey } = innerOptions;
-      if (cacheKey) {
-        const { originData } = queryStore.getLastParamsWithKey(cacheKey);
-        if (originData && deepComparison(params, originData)) {
-          return;
-        }
-      }
-      setState({ data: true }, 'loading');
-      const requestTime = new Date().getTime();
-      promiseFunc(params)
-        .then((result) => {
-          if (cacheKey) {
-            const { dataWithWrapper } =
-              queryStore.getLastParamsWithKey(cacheKey);
-            if (requestTime < dataWithWrapper.CREATE_TIME.getTime()) {
-              return;
-            }
-          }
-          setState({ data: result, params: params }, 'data');
-        })
-        .catch((reason) => {
-          setState({ data: reason }, 'error');
-        })
-        .finally(() => {
-          setHasRequest(true);
-          setState({ data: false }, 'loading');
-        });
-    },
-    [options, promiseFunc, queryStore, setState]
-  );
-
-  useEffect(() => {
-    const { manual, params } = options;
-    if (!manual) {
-      innerRequest(params);
-    }
-  }, [innerRequest, options]);
-
-  return {
-    get data() {
-      haveBeenUsedRef.current.data = true;
-      return data;
-    },
-    get loading() {
-      haveBeenUsedRef.current.loading = true;
-      return loading;
-    },
-    get error() {
-      haveBeenUsedRef.current.error = true;
-      return error;
-    },
-    hasRequest: hasRequest,
-    request: innerRequest,
-  };
-};
-
-export default useSimpleQuery;

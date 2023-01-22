@@ -1,11 +1,107 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import deepComparison from './utils/deepComparison';
+import { ChildrenPartial, useInitializeStore, useWatchState } from './core';
 
-const useSimpleQuery = (type: string) => {
-  console.log(1111);
-  console.log(type);
-  console.log(deepComparison(111, 111));
+type QueryOptions<T, CD> = {
+  loop?: boolean;
+  loopInterval?: number;
+  cacheKey?: string;
+  freshTime?: number;
+  retry?: boolean;
+  retryCount?: number;
+  params?: T;
+  initializeData?: CD;
+  manual?: boolean;
+  use?: [];
+};
 
-  return type;
+const useSimpleQuery = <T, D, E>(
+  promiseFunc: (params?: T) => Promise<D>,
+  options: QueryOptions<T, ChildrenPartial<D>>
+) => {
+  const queryStore = useInitializeStore().current;
+
+  const preOptions = useRef<QueryOptions<T, ChildrenPartial<D>>>();
+
+  const [hasRequest, setHasRequest] = useState<boolean>(false);
+
+  const { data, loading, error, setState, haveBeenUsedRef } = useWatchState<
+    T,
+    D,
+    E extends undefined ? any : E
+  >({
+    initializeOptions: {
+      data: false,
+      loading: false,
+      error: false,
+    },
+    keys: options?.cacheKey,
+    initializeData: options?.initializeData,
+    queryStore: queryStore,
+  });
+
+  const innerRequest = useCallback(
+    (params: T) => {
+      const innerOptions = { ...(options || {}) };
+      const { cacheKey } = innerOptions;
+      if (cacheKey) {
+        const { originData } = queryStore.getLastParamsWithKey(cacheKey);
+        if (originData && deepComparison(params, originData)) {
+          return;
+        }
+      }
+      setState({ data: true }, 'loading');
+      const requestTime = new Date().getTime();
+      promiseFunc(params)
+        .then((result) => {
+          if (cacheKey) {
+            const { dataWithWrapper } =
+              queryStore.getLastParamsWithKey(cacheKey);
+            if (
+              dataWithWrapper &&
+              requestTime < dataWithWrapper.CREATE_TIME.getTime()
+            ) {
+              return;
+            }
+          }
+          setState({ data: result, params: params }, 'data');
+        })
+        .catch((reason) => {
+          setState({ data: reason }, 'error');
+        })
+        .finally(() => {
+          setHasRequest(true);
+          setState({ data: false }, 'loading');
+        });
+    },
+    [options, promiseFunc, queryStore, setState]
+  );
+
+  useEffect(() => {
+    const { manual, params } = options;
+    console.log(preOptions.current, options, 'preOptions.current ,options');
+    if (!manual && !deepComparison(preOptions.current, options)) {
+      preOptions.current = options;
+      innerRequest(params);
+    }
+  }, [innerRequest, options]);
+
+  return {
+    get data() {
+      haveBeenUsedRef.current.data = true;
+      return data;
+    },
+    get loading() {
+      haveBeenUsedRef.current.loading = true;
+      return loading;
+    },
+    get error() {
+      haveBeenUsedRef.current.error = true;
+      return error;
+    },
+    hasRequest: hasRequest,
+    request: innerRequest,
+  };
 };
 
 export { deepComparison };
