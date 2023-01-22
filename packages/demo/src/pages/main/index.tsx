@@ -1,8 +1,10 @@
 import React from 'react';
-import useTest from 'squery';
+import useSimpleQuery, { deepComparison } from 'squery';
+import axios from 'axios';
 
 export default () => {
-  console.log(useTest({ name: '11111' }));
+  console.log(useSimpleQuery('111'));
+  console.log(deepComparison('1111', '1111'), 'deepComparison');
 
-  return <div>333333</div>;
+  return <div>11112312312312</div>;
 };

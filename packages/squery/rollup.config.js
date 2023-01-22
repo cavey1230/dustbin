@@ -1,6 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import rollupTypescript from 'rollup-plugin-typescript2';
+import typescript from '@rollup/plugin-typescript';
 import babel from '@rollup/plugin-babel';
 import terser from '@rollup/plugin-terser';
 import { DEFAULT_EXTENSIONS } from '@babel/core';
@@ -14,7 +14,7 @@ export default () => {
   const flow = [
     resolve(),
     commonjs(),
-    rollupTypescript(),
+    typescript(),
     babel({
       babelHelpers: 'bundled',
       exclude: 'node_modules/**',
@@ -27,7 +27,7 @@ export default () => {
     'react-dom': 'ReactDom',
   };
 
-  return {
+  const normalFlow = {
     input: './src/index.ts',
     output: [
       {
@@ -50,4 +50,10 @@ export default () => {
     external: ['react', 'react-dom'],
     plugins: isProd ? [terser(), ...flow] : flow,
   };
+
+  const replaceOutput = (origin, str) => {
+    return origin && origin.replace('build/', 'build/' + str + '/');
+  };
+
+  return [normalFlow];
 };

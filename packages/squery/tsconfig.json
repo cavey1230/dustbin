@@ -18,15 +18,12 @@
     /* Module Resolution Options */
     "moduleResolution": "node",
     "baseUrl": "./",
-    "paths": {
-      "@/squery/src/*": [
-        "packages/squery/src/*"
-      ]
-    },
     "types": [],
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./build"
   },
   "include": [
-    "packages/squery/src/*.ts",
-    "packages/squery/src/types.ts"
+    "./src",
   ],
 }
