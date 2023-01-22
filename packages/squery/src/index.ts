@@ -41,18 +41,20 @@ const useSimpleQuery = <T, D, E>(
   });
 
   const innerRequest = useCallback(
-    (params: T) => {
+    (params?: T) => {
       const innerOptions = { ...(options || {}) };
-      const { cacheKey } = innerOptions;
-      if (cacheKey) {
+      const { cacheKey, params: optionsParams } = innerOptions;
+      console.log(queryStore);
+      if (cacheKey && params) {
         const { originData } = queryStore.getLastParamsWithKey(cacheKey);
         if (originData && deepComparison(params, originData)) {
           return;
         }
       }
+      const innerParams = params ? params : optionsParams;
       setState({ data: true }, 'loading');
       const requestTime = new Date().getTime();
-      promiseFunc(params)
+      promiseFunc(innerParams)
         .then((result) => {
           if (cacheKey) {
             const { dataWithWrapper } =
@@ -64,7 +66,7 @@ const useSimpleQuery = <T, D, E>(
               return;
             }
           }
-          setState({ data: result, params: params }, 'data');
+          setState({ data: result, params: innerParams }, 'data');
         })
         .catch((reason) => {
           setState({ data: reason }, 'error');
@@ -79,7 +81,6 @@ const useSimpleQuery = <T, D, E>(
 
   useEffect(() => {
     const { manual, params } = options;
-    console.log(preOptions.current, options, 'preOptions.current ,options');
     if (!manual && !deepComparison(preOptions.current, options)) {
       preOptions.current = options;
       innerRequest(params);
