@@ -1,8 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import deepComparison from '../utils/deepComparison';
 import { SimpleQueryStore } from '../store';
-
-export let globalStore: SimpleQueryStore;
 
 type UseWatchStateInitializeOptions = {
   data: boolean;
@@ -16,11 +14,17 @@ export type ChildrenPartial<D> = {
     : Partial<D[K]>;
 };
 
-export const useInitializeStore = () => {
-  if (!globalStore) {
-    globalStore = new SimpleQueryStore();
-  }
-  return useRef(globalStore);
+export const useIsUnmount = () => {
+  const isUnmount = useRef<boolean>(false);
+
+  useEffect(
+    () => () => {
+      isUnmount.current = true;
+    },
+    []
+  );
+
+  return isUnmount;
 };
 
 export const useWatchState = <T, D, E>(options: {
@@ -32,7 +36,7 @@ export const useWatchState = <T, D, E>(options: {
 }) => {
   const [data, setData] = useState<D>(
     options.queryStore.getDataByParams(options?.keys, 'last') ||
-      options.initializeData
+      options?.initializeData
   );
   const [error, setError] = useState<E>();
   const [loading, setLoading] = useState<boolean>(false);

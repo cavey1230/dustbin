@@ -9,23 +9,65 @@ export type RequestParamsCacheType = {
 };
 
 interface Options {
-  freshTime?: number;
   handleLocalStorage?: (data: any) => void;
 }
 
+export type RetryQueueItem = {
+  request: (params: any) => Promise<any>;
+  params: any;
+};
+
 export class SimpleQueryStore {
-  private requestQueue: Record<string, Promise<any>[]>;
   private readonly responseData: WeakMap<object, any>;
   private requestParams: Record<string, RequestParamsCacheType>;
+  private waitRetryQueue: Record<string, Array<RetryQueueItem>>;
   private readonly options: Options;
 
   constructor(options?: Options) {
-    this.requestQueue = {};
     this.responseData = new WeakMap();
+    this.waitRetryQueue = {};
     this.requestParams = {};
-    this.options = options || {
-      freshTime: 15 * 60,
+    this.options = options || {};
+  }
+
+  throwTips(tips: string) {
+    console.error(tips);
+    return new TypeError(tips);
+  }
+
+  getWaitRetry(key: string) {
+    if (!key) return;
+    return this.waitRetryQueue?.[key] || [];
+  }
+
+  pushWaitRetry(key: string, request: RetryQueueItem) {
+    if (!key) return;
+    this.waitRetryQueue = {
+      ...this.waitRetryQueue,
+      [key]: [...(this.waitRetryQueue?.[key] || []), request],
     };
+  }
+
+  clearWaitRetry(key: string) {
+    if (!key) return;
+    this.waitRetryQueue = {
+      ...this.waitRetryQueue,
+      [key]: [],
+    };
+  }
+
+  removeWaitRetry(key: string, requests: RetryQueueItem[]) {
+    if (!key) return;
+    const copyQueue = this.waitRetryQueue?.[key] || [];
+    if (copyQueue.length > 0) {
+      requests.forEach((item) => {
+        copyQueue?.splice(copyQueue.indexOf(item), 1);
+      });
+      this.waitRetryQueue = {
+        ...this.waitRetryQueue,
+        [key]: copyQueue,
+      };
+    }
   }
 
   getLastParamsWithKey(key: string) {
@@ -47,35 +89,8 @@ export class SimpleQueryStore {
     return {};
   }
 
-  throwTips(tips: string) {
-    console.error(tips);
-    return new TypeError(tips);
-  }
-
-  pushNewRequestToQueue<D>(key: string, request: Promise<D>) {
-    if (!(request instanceof Promise)) {
-      throw this.throwTips(
-        'PushNewRequestToQueue function "request" param must use ES6 promise and param instanceof Promise'
-      );
-    }
-    this.requestQueue = {
-      ...this.requestQueue,
-      [key]: [...(this.requestQueue?.[key] || []), request],
-    };
-  }
-
-  removeRequestOfQueue<D>(key: string, request: Promise<D>) {
-    const findQueueByKey = this.requestQueue?.[key] || [];
-    if (findQueueByKey.length > 0) {
-      findQueueByKey?.splice(findQueueByKey.indexOf(request), 1);
-      this.requestQueue = {
-        ...this.requestQueue,
-        [key]: findQueueByKey,
-      };
-    }
-  }
-
   getDataByParams(key: string, type: 'pre' | 'last') {
+    if (!key) return;
     if (!Object.keys(this.requestParams)?.some((i) => i === key)) return;
     const keyOfObject = this.requestParams?.[key];
     if (
@@ -89,6 +104,7 @@ export class SimpleQueryStore {
   }
 
   setResponseData(key: string, params: Record<string, any>, data: any) {
+    if (!key) return;
     if (
       (typeof data === 'object' && !(Object.keys(params)?.length > 0)) ||
       (typeof data === 'object' && !(Object.keys(data)?.length > 0)) ||
@@ -98,7 +114,7 @@ export class SimpleQueryStore {
       throw this.throwTips('params or data not allow empty object');
     }
 
-    const { freshTime, handleLocalStorage } = this.options;
+    const { handleLocalStorage } = this.options;
 
     const findParamsWithKey = this.requestParams?.[key]
       ? { ...this.requestParams?.[key] }
@@ -109,12 +125,7 @@ export class SimpleQueryStore {
 
     const requestParams = judgeFindParamsWithKey && findParamsWithKey;
 
-    if (
-      requestParams &&
-      requestParams?.pre &&
-      new Date().getTime() - freshTime * 1000 >
-        requestParams?.pre?.CREATE_TIME.getTime()
-    ) {
+    if (requestParams && requestParams?.pre) {
       this.responseData.delete(requestParams.pre);
     }
 
