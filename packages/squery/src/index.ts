@@ -145,7 +145,7 @@ const useSimpleQuery = <T, D, E>(
           onFail: options?.handle?.onFail,
         },
       });
-  }, [options, promiseConsumer, queryStore]);
+  }, [options, promiseConsumer, promiseFunc, queryStore]);
 
   useEffect(() => {
     let intervalId: number;
