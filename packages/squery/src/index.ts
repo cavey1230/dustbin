@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import deepComparison from './utils/deepComparison';
-import { ChildrenPartial, useIsUnmount, useWatchState } from './core';
-import { RetryQueueItem, SimpleQueryStore } from './store';
+import {
+  ChildrenPartial,
+  useInitializeStore,
+  usePackageOptions,
+  usePromiseConsumer,
+  UserItemOptions,
+  useWatchState,
+} from './core';
 import validateOptions from './utils/validateOptions';
 import { startBroadcast, useSubscribeBroadcast } from './utils/broadcast';
+import {
+  SimpleQueryConfigProvider,
+  useConfigDispatch,
+  useConfigState,
+} from './utils/configContext';
+
+type UseItem<T, D> = (options: UserItemOptions<T, D>) => typeof options;
 
 export type QueryOptions<T, CD, D> = {
   loop?: boolean;
@@ -16,7 +29,7 @@ export type QueryOptions<T, CD, D> = {
   params?: T;
   initializeData?: CD;
   auto: boolean;
-  use?: [];
+  use?: Array<UseItem<T, D>>;
   handle?: {
     onSuccess?: (params: T, data: D) => void;
     onFail?: (params: T, data: D) => void;
@@ -24,28 +37,15 @@ export type QueryOptions<T, CD, D> = {
   };
 };
 
-export let globalStore: SimpleQueryStore;
-
-export const useInitializeStore = () => {
-  if (!globalStore) {
-    globalStore = new SimpleQueryStore();
-  }
-  return useRef(globalStore);
-};
-
 const useSimpleQuery = <T, D, E>(
   promiseFunc: (params?: T) => Promise<D>,
-  options: QueryOptions<T, ChildrenPartial<D>, D>
+  optionsParams?: QueryOptions<T, ChildrenPartial<D>, D>
 ) => {
   const queryStore = useInitializeStore().current;
 
+  const options = usePackageOptions<T, D>(optionsParams);
+
   const preOptions = useRef<QueryOptions<T, ChildrenPartial<D>, D>>();
-
-  const [hasRequest, setHasRequest] = useState<boolean>(false);
-
-  const isUnmount = useIsUnmount();
-
-  const waitRetryQueueRef = useRef<RetryQueueItem[]>([]);
 
   const [stage, setStage] = useState<'normal' | 'retry'>('normal');
 
@@ -56,12 +56,17 @@ const useSimpleQuery = <T, D, E>(
     }
   }, [options]);
 
+  const [consumer, hasRequest] = usePromiseConsumer<T, D>(
+    setStage,
+    options.cacheKey
+  );
+
   const {
     data,
     loading,
     error,
     setState,
-    setStateWithLatestStoreValue,
+    setStateWithStoreValue,
     haveBeenUsedRef,
   } = useWatchState<T, D, E extends undefined ? any : E>({
     initializeOptions: {
@@ -74,65 +79,9 @@ const useSimpleQuery = <T, D, E>(
     queryStore: queryStore,
   });
 
-  useSubscribeBroadcast(options?.cacheKey, () => {
-    setStateWithLatestStoreValue();
+  useSubscribeBroadcast(options?.cacheKey, (type) => {
+    setStateWithStoreValue(type);
   });
-
-  const promiseConsumer = useCallback(
-    (
-      promise: (params?: T) => Promise<D>,
-      options: {
-        params: T;
-        cacheKey: string;
-        requestTime: number;
-        stage: 'normal' | 'retry';
-        handle: QueryOptions<T, ChildrenPartial<D>, D>['handle'];
-      }
-    ) => {
-      const { params, cacheKey, requestTime, handle } = options;
-      promise(params)
-        ?.then((result) => {
-          if (cacheKey) {
-            const { dataWithWrapper } =
-              queryStore.getLastParamsWithKey(cacheKey);
-            if (
-              dataWithWrapper &&
-              requestTime < dataWithWrapper.CREATE_TIME.getTime()
-            ) {
-              return;
-            }
-          }
-          if (!isUnmount.current) {
-            setState({ data: result, params }, 'data');
-            setStage('normal');
-            handle?.onSuccess?.(params, result);
-            startBroadcast(cacheKey);
-          }
-        })
-        .catch((reason) => {
-          if (cacheKey) {
-            const waitRetryItem = {
-              request: promise,
-              params,
-            };
-            waitRetryQueueRef.current.push(waitRetryItem);
-            queryStore.pushWaitRetry(cacheKey, waitRetryItem);
-          }
-          if (!isUnmount.current) {
-            setStage('retry');
-            setState({ data: reason }, 'error');
-            handle?.onFail?.(params, reason);
-          }
-        })
-        .finally(() => {
-          if (!isUnmount.current) {
-            setHasRequest(true);
-            setState({ data: false }, 'loading');
-          }
-        });
-    },
-    [isUnmount, queryStore, setState]
-  );
 
   const retryRequest = useCallback(() => {
     const { cacheKey } = options;
@@ -150,17 +99,22 @@ const useSimpleQuery = <T, D, E>(
     queryStore.removeWaitRetry(options.cacheKey, lastRequest);
     const requestTime = new Date().getTime();
     lastRequest?.[0] &&
-      promiseConsumer(lastRequest?.[0]?.request, {
-        params: lastRequest?.[0]?.params,
-        cacheKey: options.cacheKey,
-        requestTime,
-        stage: 'retry',
-        handle: {
-          onSuccess: options?.handle?.onSuccess,
-          onFail: options?.handle?.onFail,
+      consumer(
+        lastRequest?.[0]?.request,
+        {
+          params: lastRequest?.[0]?.params,
+          cacheKey: options.cacheKey,
+          requestTime,
+          stage: 'retry',
+          use: options.use,
+          handle: {
+            onSuccess: options?.handle?.onSuccess,
+            onFail: options?.handle?.onFail,
+          },
         },
-      });
-  }, [options, promiseConsumer, promiseFunc, queryStore]);
+        setState
+      );
+  }, [options, queryStore, promiseFunc, consumer, setState]);
 
   useEffect(() => {
     let intervalId: number;
@@ -201,35 +155,39 @@ const useSimpleQuery = <T, D, E>(
         ? preOptions.current?.params
         : optionsParams || optionsParams;
       if (cacheKey) {
-        const { dataWithWrapper } = queryStore.getLastParamsWithKey(cacheKey);
+        const { dataWithWrapper, originData } =
+          queryStore.getLastParamsWithKey(cacheKey);
         if (
           freshTime &&
-          requestTime - dataWithWrapper.CREATE_TIME.getTime() < freshTime
+          requestTime - dataWithWrapper?.CREATE_TIME < freshTime &&
+          deepComparison(innerParams, originData)
         ) {
+          console.warn(
+            'Hit caches. If you need to get the latest response data,' +
+              ' please manually run the exported [request] function'
+          );
           return;
         }
       }
       setState({ data: true }, 'loading');
-      promiseConsumer(promiseFunc, {
-        params: innerParams,
-        cacheKey,
-        requestTime,
-        stage: 'normal',
-        handle: {
-          onSuccess: options?.handle?.onSuccess,
-          onFail: options?.handle?.onFail,
+      consumer(
+        promiseFunc,
+        {
+          params: innerParams,
+          cacheKey,
+          requestTime,
+          stage: 'normal',
+          use: options.use,
+          handle: {
+            onSuccess: options?.handle?.onSuccess,
+            onFail: options?.handle?.onFail,
+          },
         },
-      });
+        setState
+      );
     },
-    [options, promiseConsumer, promiseFunc, queryStore, setState]
+    [options, consumer, promiseFunc, queryStore, setState]
   );
-
-  useEffect(() => {
-    const waitRetryQueue = waitRetryQueueRef.current;
-    return () => {
-      queryStore.removeWaitRetry(options.cacheKey, waitRetryQueue);
-    };
-  }, [options.cacheKey, queryStore]);
 
   useEffect(() => {
     const { auto, params, cacheKey, loop } = options;
@@ -276,6 +234,10 @@ const useSimpleQuery = <T, D, E>(
       return error;
     },
     hasRequest: hasRequest,
+    rollback: () => {
+      startBroadcast(options.cacheKey, 'pre');
+      setStateWithStoreValue('pre');
+    },
     request: (params?: T) => {
       queryStore.clearWaitRetry(options.cacheKey);
       innerRequest(params);
@@ -283,6 +245,11 @@ const useSimpleQuery = <T, D, E>(
   };
 };
 
-export { deepComparison };
+export {
+  deepComparison,
+  SimpleQueryConfigProvider,
+  useConfigDispatch,
+  useConfigState,
+};
 
 export default useSimpleQuery;

@@ -1,11 +1,21 @@
 import useSimpleQuery from 'squery';
 
 export default () => {
-  const { data, loading, error, hasRequest, request } = useSimpleQuery(
-    (params?: { page: number }) => Promise.resolve({ name: 'eeeee' }),
+  const { data, request } = useSimpleQuery(
+    () => Promise.resolve({ name: 'eeeee' }),
     {
       auto: false,
       cacheKey: 'list',
+      use: [
+        (params) => {
+          console.log(params.type, 'a', 'father');
+          return { ...params, stop: true };
+        },
+        (params) => {
+          console.log(params.type, 'b', 'father');
+          return { ...params, stop: true };
+        },
+      ],
     }
   );
 

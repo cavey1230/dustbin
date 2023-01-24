@@ -1,17 +1,20 @@
 import { useEffect } from 'react';
 
-const simpleQueryBroadcastListeners: Record<string, Array<() => void>> = {};
+const simpleQueryBroadcastListeners: Record<
+  string,
+  Array<(type: 'pre' | 'last') => void>
+> = {};
 
-export const startBroadcast = (cacheKey: string) => {
+export const startBroadcast = (cacheKey: string, type: 'pre' | 'last') => {
   cacheKey &&
     simpleQueryBroadcastListeners?.[cacheKey]?.forEach((listener) =>
-      listener()
+      listener(type)
     );
 };
 
 export const useSubscribeBroadcast = (
   cacheKey: string,
-  listener: () => void
+  listener: (type: 'pre' | 'last') => void
 ) => {
   useEffect(() => {
     if (!cacheKey) return;

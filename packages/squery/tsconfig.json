@@ -7,14 +7,16 @@
     "lib": [
       "esnext",
       "dom",
-      "dom.iterable",
+      "dom.iterable"
     ],
     "allowJs": true,
     "removeComments": true,
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": false,
+    "allowSyntheticDefaultImports": true,
     "noUnusedLocals": true,
+    "jsx": "react",
     /* Module Resolution Options */
     "moduleResolution": "node",
     "baseUrl": "./",

@@ -1,50 +1,51 @@
 import React, { useState } from 'react';
-import useSimpleQuery from 'squery';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import ChildrenCom from 'pages/main/childrenCom';
+import useSimpleQuery from 'squery';
 
 export default () => {
   const [loop, setLoop] = useState<boolean>(false);
 
-  const { data, loading, error, hasRequest, request } = useSimpleQuery(
-    (params?: { pageNum: number; sort?: string; pageSize?: number }) =>
-      // axios
-      //   .post<{
-      //     data: string;
-      //   }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
-      //     ...params,
-      //   })
-      //   .then(() => {
-      //     return Promise.reject('eeeee');
-      //   }),
+  const { data, loading, error, hasRequest, request, rollback } =
+    useSimpleQuery(
+      (params?: { pageNum: number; sort?: string; pageSize?: number }) =>
+        // axios
+        //   .post<{
+        //     data: string;
+        //   }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+        //     ...params,
+        //   })
+        //   .then(() => {
+        //     return Promise.reject('eeeee');
+        //   }),
 
-      axios.post<{
-        data: string;
-      }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
-        ...params,
-      }),
-    {
-      auto: true,
-      loop: loop,
-      retry: !loop,
-      cacheKey: 'list',
-      params: {
-        pageNum: 2,
-      },
-      handle: {
-        onSuccess: () => {
-          console.log(111);
+        axios.post<{
+          data: string;
+        }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+          ...params,
+        }),
+      {
+        auto: true,
+        loop: loop,
+        retry: !loop,
+        cacheKey: 'list',
+        params: {
+          pageNum: 2,
         },
-        onFail: () => {
-          console.log(222);
+        handle: {
+          onSuccess: () => {
+            console.log(111);
+          },
+          onFail: () => {
+            console.log(222);
+          },
+          onRetryComplete: () => {
+            console.log(333);
+          },
         },
-        onRetryComplete: () => {
-          console.log(333);
-        },
-      },
-    }
-  );
+      }
+    );
 
   const router = useNavigate();
 
@@ -112,6 +113,12 @@ export default () => {
           });
         }}>
         manual request success
+      </div>
+      <div
+        onClick={() => {
+          rollback();
+        }}>
+        rollback
       </div>
     </div>
   );

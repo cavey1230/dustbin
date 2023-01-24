@@ -1,16 +1,14 @@
+import { ContextCache } from '../utils/configContext';
+
 type CacheParamsType = Record<any, any> & {
   SIMPLE_QUERY_KEY: string;
-  CREATE_TIME: Date;
+  CREATE_TIME: number;
 };
 
 export type RequestParamsCacheType = {
   pre: CacheParamsType;
   last: CacheParamsType;
 };
-
-interface Options {
-  handleLocalStorage?: (data: any) => void;
-}
 
 export type RetryQueueItem = {
   request: (params: any) => Promise<any>;
@@ -21,13 +19,72 @@ export class SimpleQueryStore {
   private readonly responseData: WeakMap<object, any>;
   private requestParams: Record<string, RequestParamsCacheType>;
   private waitRetryQueue: Record<string, Array<RetryQueueItem>>;
-  private readonly options: Options;
+  private readonly options: ContextCache;
 
-  constructor(options?: Options) {
-    this.responseData = new WeakMap();
+  constructor(options?: ContextCache) {
     this.waitRetryQueue = {};
-    this.requestParams = {};
     this.options = options || {};
+    const formatData = options?.setCacheDataWithLocalStorage?.()?.reduce(
+      (store, item) => {
+        const key = item?.[0];
+        const preData = { ...item?.[1]?.pre };
+        const lastData = { ...item?.[1]?.last };
+        const originParams: {
+          pre: any;
+          last: any;
+        } = {
+          pre: undefined,
+          last: undefined,
+        };
+        if (preData?.CREATE_TIME) {
+          const cacheData = preData?.CACHE_DATA;
+          delete preData?.CACHE_DATA;
+          originParams.pre = preData;
+          store[1] = [...(store?.[1] || []), [preData, cacheData]];
+        }
+        if (lastData?.CREATE_TIME) {
+          const cacheData = lastData?.CACHE_DATA;
+          delete lastData?.CACHE_DATA;
+          originParams.last = lastData;
+          store[1] = [...(store?.[1] || []), [lastData, cacheData]];
+        }
+
+        store[0] = [...(store[0] || []), [key, originParams]];
+
+        return store;
+      },
+      [[], []]
+    );
+    this.responseData =
+      (options?.setCacheDataWithLocalStorage &&
+        formatData?.[1]?.length > 0 &&
+        new WeakMap(formatData?.[1])) ||
+      new WeakMap();
+    this.requestParams =
+      (options?.setCacheDataWithLocalStorage &&
+        formatData?.[0].length > 0 &&
+        Object.fromEntries(formatData?.[0])) ||
+      {};
+  }
+
+  toLocalStorageObject(
+    requestParams: Record<string, RequestParamsCacheType>,
+    responseData: WeakMap<object, any>
+  ): [string, RequestParamsCacheType][] {
+    const toEntries = Object.entries(requestParams);
+    return toEntries?.map(([key, { pre, last }]) => [
+      key,
+      {
+        pre: {
+          ...pre,
+          CACHE_DATA: responseData.has(pre) && this.responseData.get(pre),
+        },
+        last: {
+          ...last,
+          CACHE_DATA: responseData.has(last) && this.responseData.get(last),
+        },
+      },
+    ]);
   }
 
   throwTips(tips: string) {
@@ -116,8 +173,6 @@ export class SimpleQueryStore {
       );
     }
 
-    const { handleLocalStorage } = this.options;
-
     const findParamsWithKey = this.requestParams?.[key]
       ? { ...this.requestParams?.[key] }
       : ({} as RequestParamsCacheType);
@@ -133,7 +188,7 @@ export class SimpleQueryStore {
 
     const packageParams = {
       SIMPLE_QUERY_KEY: key,
-      CREATE_TIME: new Date(),
+      CREATE_TIME: new Date().getTime(),
       ...params,
     };
 
@@ -152,6 +207,8 @@ export class SimpleQueryStore {
       responseData: this.responseData,
     });
 
-    handleLocalStorage?.(packageParams);
+    this.options?.onCacheDataChange?.(
+      this.toLocalStorageObject(this.requestParams, this.responseData)
+    );
   }
 }
