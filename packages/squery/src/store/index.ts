@@ -111,7 +111,9 @@ export class SimpleQueryStore {
       data === null ||
       params === null
     ) {
-      throw this.throwTips('params or data not allow empty object');
+      throw this.throwTips(
+        '[simple query error - setResponseData]:Not allow empty objects or other value types except objects'
+      );
     }
 
     const { handleLocalStorage } = this.options;
@@ -144,6 +146,11 @@ export class SimpleQueryStore {
     };
 
     this.responseData.set(packageParams, data);
+
+    console.log({
+      requestParams: this.requestParams,
+      responseData: this.responseData,
+    });
 
     handleLocalStorage?.(packageParams);
   }

@@ -3,6 +3,7 @@ import deepComparison from './utils/deepComparison';
 import { ChildrenPartial, useIsUnmount, useWatchState } from './core';
 import { RetryQueueItem, SimpleQueryStore } from './store';
 import validateOptions from './utils/validateOptions';
+import { startBroadcast, useSubscribeBroadcast } from './utils/broadcast';
 
 export type QueryOptions<T, CD, D> = {
   loop?: boolean;
@@ -55,11 +56,14 @@ const useSimpleQuery = <T, D, E>(
     }
   }, [options]);
 
-  const { data, loading, error, setState, haveBeenUsedRef } = useWatchState<
-    T,
-    D,
-    E extends undefined ? any : E
-  >({
+  const {
+    data,
+    loading,
+    error,
+    setState,
+    setStateWithLatestStoreValue,
+    haveBeenUsedRef,
+  } = useWatchState<T, D, E extends undefined ? any : E>({
     initializeOptions: {
       data: false,
       loading: false,
@@ -68,6 +72,10 @@ const useSimpleQuery = <T, D, E>(
     keys: options.cacheKey,
     initializeData: options.initializeData,
     queryStore: queryStore,
+  });
+
+  useSubscribeBroadcast(options?.cacheKey, () => {
+    setStateWithLatestStoreValue();
   });
 
   const promiseConsumer = useCallback(
@@ -94,9 +102,12 @@ const useSimpleQuery = <T, D, E>(
               return;
             }
           }
-          !isUnmount.current && setState({ data: result, params }, 'data');
-          setStage('normal');
-          handle?.onSuccess?.(params, result);
+          if (!isUnmount.current) {
+            setState({ data: result, params }, 'data');
+            setStage('normal');
+            handle?.onSuccess?.(params, result);
+            startBroadcast(cacheKey);
+          }
         })
         .catch((reason) => {
           if (cacheKey) {
@@ -107,13 +118,17 @@ const useSimpleQuery = <T, D, E>(
             waitRetryQueueRef.current.push(waitRetryItem);
             queryStore.pushWaitRetry(cacheKey, waitRetryItem);
           }
-          setStage('retry');
-          !isUnmount.current && setState({ data: reason }, 'error');
-          handle?.onFail?.(params, reason);
+          if (!isUnmount.current) {
+            setStage('retry');
+            setState({ data: reason }, 'error');
+            handle?.onFail?.(params, reason);
+          }
         })
         .finally(() => {
-          setHasRequest(true);
-          !isUnmount.current && setState({ data: false }, 'loading');
+          if (!isUnmount.current) {
+            setHasRequest(true);
+            setState({ data: false }, 'loading');
+          }
         });
     },
     [isUnmount, queryStore, setState]

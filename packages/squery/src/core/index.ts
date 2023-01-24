@@ -50,6 +50,10 @@ export const useWatchState = <T, D, E>(options: {
       } as UseWatchStateInitializeOptions)
   );
 
+  const setStateWithLatestStoreValue = () => {
+    setData(options.queryStore.getDataByParams(options.keys, 'last'));
+  };
+
   const setState = useCallback(
     (
       combined: {
@@ -86,6 +90,8 @@ export const useWatchState = <T, D, E>(options: {
     loading,
 
     setState,
+
+    setStateWithLatestStoreValue,
 
     haveBeenUsedRef,
   };

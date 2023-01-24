@@ -2,27 +2,35 @@ import React, { useState } from 'react';
 import useSimpleQuery from 'squery';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import ChildrenCom from 'pages/main/childrenCom';
 
 export default () => {
   const [loop, setLoop] = useState<boolean>(false);
 
   const { data, loading, error, hasRequest, request } = useSimpleQuery(
-    (params?: { page: number }) =>
-      axios
-        .post<{
-          data: string;
-        }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
-          ...params,
-        })
-        .then(() => {
-          return Promise.reject('eeeee');
-        }),
+    (params?: { pageNum: number; sort?: string; pageSize?: number }) =>
+      // axios
+      //   .post<{
+      //     data: string;
+      //   }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+      //     ...params,
+      //   })
+      //   .then(() => {
+      //     return Promise.reject('eeeee');
+      //   }),
+
+      axios.post<{
+        data: string;
+      }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+        ...params,
+      }),
     {
       auto: true,
-      // loop: loop,
-      retry: true,
+      loop: loop,
+      retry: !loop,
+      cacheKey: 'list',
       params: {
-        page: 2,
+        pageNum: 2,
       },
       handle: {
         onSuccess: () => {
@@ -40,12 +48,27 @@ export default () => {
 
   const router = useNavigate();
 
+  const [unmount, setUnmount] = useState<boolean>(false);
+
   return (
     <div>
       <div>{JSON.stringify(data)}</div>
       <div>{loading.toString()}</div>
       <div>{JSON.stringify(error)}</div>
       <div>{hasRequest.toString()}</div>
+
+      <div style={{ border: '1px solid black' }}>
+        {!unmount && <ChildrenCom />}
+
+        <div
+          style={{ marginTop: '30px', backgroundColor: '#eee' }}
+          onClick={() => {
+            setUnmount((prevState) => !prevState);
+          }}>
+          unmount children com
+        </div>
+      </div>
+
       <div
         onClick={() => {
           router('/empty');
@@ -67,7 +90,7 @@ export default () => {
       <div
         onClick={() => {
           request({
-            page: 3,
+            pageNum: 3,
           });
         }}>
         manual request page3
@@ -75,10 +98,20 @@ export default () => {
       <div
         onClick={() => {
           request({
-            page: 4,
+            pageNum: 4,
           });
         }}>
         manual request page4
+      </div>
+      <div
+        onClick={() => {
+          request({
+            pageNum: 4,
+            sort: 'DESC',
+            pageSize: 1,
+          });
+        }}>
+        manual request success
       </div>
     </div>
   );
