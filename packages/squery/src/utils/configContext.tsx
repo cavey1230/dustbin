@@ -68,7 +68,8 @@ const SimpleQueryConfigProvider = ({
 };
 
 const useConfigCache = () => {
-  return useContext(ConfigCache);
+  const context = useContext(ConfigCache);
+  return context ? context : {};
 };
 
 const useConfigState = () => {

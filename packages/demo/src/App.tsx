@@ -17,8 +17,8 @@ export default () => {
             const cache = localStorage.getItem('testCache');
             console.log(cache && JSON.parse(cache));
             return cache && JSON.parse(cache);
-          } catch (e: any) {
-            throw new Error(e);
+          } catch {
+            throw new Error('parse testCache fail');
           }
         },
       }}
