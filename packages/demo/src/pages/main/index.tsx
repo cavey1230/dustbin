@@ -4,12 +4,28 @@ import { useNavigate } from 'react-router-dom';
 import ChildrenCom from 'pages/main/childrenCom';
 import useSimpleQuery from 'squery';
 
+import requestMock from '../../mock/requestMock';
+
 export default () => {
   const [loop, setLoop] = useState<boolean>(false);
 
+  const [stateParams, setStateParams] = useState<{
+    pageNum: number;
+    sort?: string;
+    pageSize?: number;
+    type?: 'success' | 'fail';
+  }>({
+    pageNum: 2,
+  });
+
   const { data, loading, error, hasRequest, request, rollback } =
     useSimpleQuery(
-      (params?: { pageNum: number; sort?: string; pageSize?: number }) =>
+      (params?: {
+        pageNum: number;
+        sort?: string;
+        pageSize?: number;
+        type?: 'success' | 'fail';
+      }) =>
         // axios
         //   .post<{
         //     data: string;
@@ -20,19 +36,22 @@ export default () => {
         //     return Promise.reject('eeeee');
         //   }),
 
-        axios.post<{
-          data: string;
-        }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
-          ...params,
+        // axios.post<{
+        //   data: string;
+        // }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+        //   ...params,
+        // }),
+        requestMock({
+          type: params?.type || 'fail',
+          content: 'test fail',
+          params,
         }),
       {
         auto: true,
         loop: loop,
         retry: !loop,
         cacheKey: 'list',
-        params: {
-          pageNum: 2,
-        },
+        params: stateParams,
         handle: {
           onSuccess: () => {
             console.log(111);
@@ -61,65 +80,75 @@ export default () => {
       <div style={{ border: '1px solid black' }}>
         {!unmount && <ChildrenCom />}
 
-        <div
+        <button
           style={{ marginTop: '30px', backgroundColor: '#eee' }}
           onClick={() => {
             setUnmount((prevState) => !prevState);
           }}>
           unmount children com
-        </div>
+        </button>
       </div>
 
-      <div
+      <button
         onClick={() => {
           router('/empty');
         }}>
         go empty
-      </div>
-      <div
+      </button>
+      <button
         onClick={() => {
           setLoop((prevState) => !prevState);
         }}>
         loop switch {loop.toString()}
-      </div>
-      <div
+      </button>
+      <button
         onClick={() => {
           request();
         }}>
         manual request prev
-      </div>
-      <div
+      </button>
+      <button
         onClick={() => {
           request({
             pageNum: 3,
+            type: 'success',
           });
         }}>
-        manual request page3
-      </div>
-      <div
+        manual request page3 success
+      </button>
+      <button
         onClick={() => {
           request({
             pageNum: 4,
+            type: 'fail',
           });
         }}>
-        manual request page4
-      </div>
-      <div
+        manual request page4 fail
+      </button>
+      <button
         onClick={() => {
           request({
             pageNum: 4,
-            sort: 'DESC',
-            pageSize: 1,
+            type: 'success',
           });
         }}>
         manual request success
-      </div>
-      <div
+      </button>
+      <button
+        onClick={() => {
+          setStateParams({
+            pageNum: 4,
+            type: 'success',
+          });
+        }}>
+        auto request success
+      </button>
+      <button
         onClick={() => {
           rollback();
         }}>
         rollback
-      </div>
+      </button>
     </div>
   );
 };

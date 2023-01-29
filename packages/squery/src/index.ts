@@ -41,13 +41,13 @@ const useSimpleQuery = <T, D, E>(
   promiseFunc: (params?: T) => Promise<D>,
   optionsParams?: QueryOptions<T, ChildrenPartial<D>, D>
 ) => {
-  const queryStore = useInitializeStore().current;
+  const queryStore = useRef(useInitializeStore());
 
   const options = usePackageOptions<T, D>(optionsParams);
 
   const preOptions = useRef<QueryOptions<T, ChildrenPartial<D>, D>>();
 
-  const [stage, setStage] = useState<'normal' | 'retry'>('normal');
+  const [stage, setStage] = useState<'NORMAL' | 'RETRY'>('NORMAL');
 
   useEffect(() => {
     const validate = validateOptions(options);
@@ -76,7 +76,7 @@ const useSimpleQuery = <T, D, E>(
     },
     keys: options.cacheKey,
     initializeData: options.initializeData,
-    queryStore: queryStore,
+    queryStore: queryStore.current,
   });
 
   useSubscribeBroadcast(options?.cacheKey, (type) => {
@@ -85,25 +85,31 @@ const useSimpleQuery = <T, D, E>(
 
   const retryRequest = useCallback(() => {
     const { cacheKey } = options;
-    const queue = queryStore.getWaitRetry(options.cacheKey);
+    const queue = queryStore.current.getWaitRetry(cacheKey);
+
+    const lastRequestParams =
+      queryStore.current.getLastParamsWithKey(cacheKey)?.originData;
+
+    const innerParams = cacheKey
+      ? lastRequestParams
+        ? lastRequestParams
+        : options.params
+      : options.params;
+
     const lastRequest = queue?.slice(-1) || [
       {
         request: promiseFunc,
-        params: cacheKey
-          ? queryStore.getLastParamsWithKey(cacheKey)?.originData
-          : preOptions.current
-          ? preOptions.current?.params
-          : undefined,
+        params: innerParams,
       },
     ];
-    queryStore.removeWaitRetry(options.cacheKey, lastRequest);
+    queryStore.current.removeWaitRetry(cacheKey, lastRequest);
     const requestTime = new Date().getTime();
     lastRequest?.[0] &&
       consumer(
         lastRequest?.[0]?.request,
         {
           params: lastRequest?.[0]?.params,
-          cacheKey: options.cacheKey,
+          cacheKey: cacheKey,
           requestTime,
           stage: 'retry',
           use: options.use,
@@ -114,12 +120,12 @@ const useSimpleQuery = <T, D, E>(
         },
         setState
       );
-  }, [options, queryStore, promiseFunc, consumer, setState]);
+  }, [options, promiseFunc, consumer, setState]);
 
   useEffect(() => {
     let intervalId: number;
     let counter = 0;
-    if (stage === 'retry' && options?.retry) {
+    if (stage === 'RETRY' && options?.retry) {
       intervalId = setInterval(() => {
         if (counter >= (options?.retryCount || 1)) {
           options.handle?.onRetryComplete?.();
@@ -134,29 +140,26 @@ const useSimpleQuery = <T, D, E>(
     return () => {
       clearInterval(intervalId);
     };
-  }, [
-    options?.handle,
-    options?.retry,
-    options?.retryCount,
-    options?.retryInterval,
-    retryRequest,
-    stage,
-  ]);
+  }, [options, retryRequest, stage]);
 
   const innerRequest = useCallback(
-    (params?: T) => {
+    (target: 'manual' | 'normal', params?: T) => {
       const { cacheKey, params: optionsParams, freshTime } = options || {};
       const requestTime = new Date().getTime();
+      const lastRequestParams =
+        queryStore.current.getLastParamsWithKey(cacheKey)?.originData;
       const innerParams = params
         ? params
         : cacheKey
-        ? queryStore.getLastParamsWithKey(cacheKey)?.originData
-        : preOptions.current
-        ? preOptions.current?.params
-        : optionsParams || optionsParams;
-      if (cacheKey) {
+        ? lastRequestParams
+          ? lastRequestParams
+          : optionsParams
+        : optionsParams;
+
+      if (cacheKey && target === 'normal') {
         const { dataWithWrapper, originData } =
-          queryStore.getLastParamsWithKey(cacheKey);
+          queryStore.current.getLastParamsWithKey(cacheKey);
+
         if (
           freshTime &&
           requestTime - dataWithWrapper?.CREATE_TIME < freshTime &&
@@ -186,7 +189,7 @@ const useSimpleQuery = <T, D, E>(
         setState
       );
     },
-    [options, consumer, promiseFunc, queryStore, setState]
+    [options, setState, consumer, promiseFunc]
   );
 
   useEffect(() => {
@@ -194,7 +197,7 @@ const useSimpleQuery = <T, D, E>(
     let intervalId: number;
     if (auto && !loop && !deepComparison(preOptions.current, options)) {
       const beCombinedParams = cacheKey
-        ? queryStore.getLastParamsWithKey(cacheKey)?.originData
+        ? queryStore.current.getLastParamsWithKey(cacheKey)?.originData
         : preOptions.current?.params
         ? preOptions.current?.params
         : undefined;
@@ -206,19 +209,19 @@ const useSimpleQuery = <T, D, E>(
         return;
       }
       preOptions.current = options;
-      queryStore.clearWaitRetry(cacheKey);
-      innerRequest(params);
+      queryStore.current.clearWaitRetry(cacheKey);
+      innerRequest('normal', params);
     }
     if (auto && loop) {
-      queryStore.clearWaitRetry(cacheKey);
+      queryStore.current.clearWaitRetry(cacheKey);
       intervalId = setInterval(() => {
-        innerRequest(params);
+        innerRequest('manual', params);
       }, options.loopInterval || 1000);
       return () => {
         clearInterval(intervalId);
       };
     }
-  }, [innerRequest, options, queryStore]);
+  }, [innerRequest, options]);
 
   return {
     get data() {
@@ -239,8 +242,8 @@ const useSimpleQuery = <T, D, E>(
       setStateWithStoreValue('pre');
     },
     request: (params?: T) => {
-      queryStore.clearWaitRetry(options.cacheKey);
-      innerRequest(params);
+      queryStore.current.clearWaitRetry(options.cacheKey);
+      innerRequest('manual', params);
     },
   };
 };

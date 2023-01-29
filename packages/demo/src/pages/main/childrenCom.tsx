@@ -8,12 +8,33 @@ export default () => {
       cacheKey: 'list',
       use: [
         (params) => {
-          console.log(params.type, 'a', 'father');
-          return { ...params, stop: true };
+          console.log(
+            params.type,
+            'a',
+            'children',
+            params.result,
+            params.stage
+          );
+          return {
+            ...params,
+            stop: false,
+            result: {
+              name: 'change by middleware',
+            },
+          };
         },
         (params) => {
-          console.log(params.type, 'b', 'father');
-          return { ...params, stop: true };
+          console.log(
+            params.type,
+            'b',
+            'children',
+            params.result,
+            params.stage
+          );
+          return {
+            ...params,
+            stop: false,
+          };
         },
       ],
     }
@@ -22,12 +43,12 @@ export default () => {
   return (
     <div>
       <div>i am children data{JSON.stringify(data)}</div>
-      <div
+      <button
         onClick={() => {
           request();
         }}>
         childrenRequest
-      </div>
+      </button>
     </div>
   );
 };

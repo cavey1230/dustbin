@@ -3,6 +3,7 @@ import { ContextCache } from '../utils/configContext';
 type CacheParamsType = Record<any, any> & {
   SIMPLE_QUERY_KEY: string;
   CREATE_TIME: number;
+  EMPTY_PARAMS?: true;
 };
 
 export type RequestParamsCacheType = {

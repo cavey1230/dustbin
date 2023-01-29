@@ -44,7 +44,7 @@ export const useInitializeStore = () => {
       setCacheDataWithLocalStorage,
     });
   }
-  return useRef(globalStore);
+  return globalStore;
 };
 
 export const usePackageOptions = <T, D>(
@@ -90,10 +90,10 @@ export const useIsUnmount = () => {
 };
 
 export const usePromiseConsumer = <T, D>(
-  setStage: Dispatch<SetStateAction<'normal' | 'retry'>>,
+  setStage: Dispatch<SetStateAction<'NORMAL' | 'RETRY'>>,
   cacheKey: string
 ) => {
-  const queryStore = useInitializeStore().current;
+  const queryStore = useRef(useInitializeStore());
 
   const [hasRequest, setHasRequest] = useState<boolean>(false);
 
@@ -103,10 +103,11 @@ export const usePromiseConsumer = <T, D>(
 
   useEffect(() => {
     const waitRetryQueue = waitRetryQueueRef.current;
+    const queryStoreCurrent = queryStore.current;
     return () => {
-      queryStore.removeWaitRetry(cacheKey, waitRetryQueue);
+      queryStoreCurrent.removeWaitRetry(cacheKey, waitRetryQueue);
     };
-  }, [cacheKey, queryStore]);
+  }, [cacheKey]);
 
   return [
     (
@@ -128,49 +129,45 @@ export const usePromiseConsumer = <T, D>(
       ) => void
     ) => {
       const { params, cacheKey, requestTime, handle, use, stage } = options;
+
       const middlewareNeedParams = {
         cacheKey,
         params,
         stage,
         requestTime,
       };
-      let before: UserItemOptions<T, D> = {
-        type: 'before',
-        stop: false,
-        ...middlewareNeedParams,
-      };
-      if (use && use.length > 0) {
-        for (let i = use.length; i-- > 0; ) {
-          before = before.stop ? before : use[i](before);
+
+      const middlewareFactory = (type: 'after' | 'before', result?: D) => {
+        let originData: UserItemOptions<T, D> = {
+          type,
+          stop: false,
+          ...middlewareNeedParams,
+          result: result,
+        };
+        if (use && use.length > 0) {
+          use?.forEach((item) => {
+            originData = originData.stop ? originData : item(originData);
+          });
         }
-      }
-      if (before.stop) {
-        return;
-      }
+        return originData;
+      };
+
+      const originData = middlewareFactory('before');
+      if (originData.stop) return;
       promise(params)
         ?.then((result) => {
           if (cacheKey) {
             const { dataWithWrapper } =
-              queryStore.getLastParamsWithKey(cacheKey);
+              queryStore.current.getLastParamsWithKey(cacheKey);
             if (dataWithWrapper && requestTime < dataWithWrapper.CREATE_TIME) {
               return;
             }
           }
           if (!isUnmount.current) {
-            setStage('normal');
-            let after: UserItemOptions<T, D> = {
-              type: 'after',
-              stop: false,
-              ...middlewareNeedParams,
-              result: result,
-            };
-            if (use && use?.length > 0) {
-              for (let i = 0; i < use.length; i++) {
-                after = after.stop ? after : use[i](after);
-              }
-            }
-            if (after.stop) return;
-            setState({ data: result, params }, 'data');
+            setStage('NORMAL');
+            const originData = middlewareFactory('after', result);
+            if (originData.stop) return;
+            setState({ data: originData.result, params }, 'data');
             handle?.onSuccess?.(params, result);
             startBroadcast(cacheKey, 'last');
           }
@@ -182,10 +179,10 @@ export const usePromiseConsumer = <T, D>(
               params,
             };
             waitRetryQueueRef.current.push(waitRetryItem);
-            queryStore.pushWaitRetry(cacheKey, waitRetryItem);
+            queryStore.current.pushWaitRetry(cacheKey, waitRetryItem);
           }
           if (!isUnmount.current) {
-            setStage('retry');
+            setStage('RETRY');
             setState({ data: reason }, 'error');
             handle?.onFail?.(params, reason);
           }
@@ -240,13 +237,14 @@ export const useWatchState = <T, D, E>(options: {
         const judge = deepComparison(data, combined.data);
         if (!judge) {
           setData(combined.data as D);
-          options?.keys &&
-            options.queryStore.setResponseData(
-              options?.keys,
-              combined.params || {},
-              combined.data as D
-            );
         }
+        setError(undefined);
+        options?.keys &&
+          options.queryStore.setResponseData(
+            options?.keys,
+            combined.params || { EMPTY_PARAMS: true },
+            combined.data as D
+          );
       }
       if (haveBeenUsedRef.current.loading && type === 'loading') {
         setLoading(combined.data as boolean);

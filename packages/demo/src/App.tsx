@@ -23,14 +23,26 @@ export default () => {
         },
       }}
       config={{
-        freshTime: 5 * 60 * 1000,
+        freshTime: 30 * 1000,
         use: [
           (params) => {
-            console.log(params.type, 'a111', 'father', params.result);
+            console.log(
+              params.type,
+              'a111',
+              'father',
+              params.result,
+              params.stage
+            );
             return { ...params, stop: false };
           },
           (params) => {
-            console.log(params.type, 'b222', 'father', params.result);
+            console.log(
+              params.type,
+              'b222',
+              'father',
+              params.result,
+              params.stage
+            );
             return { ...params, stop: false };
           },
         ],
