@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import deepComparison from './utils/deepComparison';
 import {
   ChildrenPartial,
@@ -12,9 +12,9 @@ import validateOptions from './utils/validateOptions';
 import { startBroadcast, useSubscribeBroadcast } from './utils/broadcast';
 import {
   SimpleQueryConfigProvider,
-  useConfigDispatch,
   useConfigState,
 } from './utils/configContext';
+import { SimpleQueryStore } from './store';
 
 type UseItem<T, D> = (options: UserItemOptions<T, D>) => typeof options;
 
@@ -34,20 +34,19 @@ export type QueryOptions<T, CD, D> = {
     onSuccess?: (params: T, data: D) => void;
     onFail?: (params: T, data: D) => void;
     onRetryComplete?: () => void;
+    onRetry?: (counter: number) => void;
   };
 };
 
 const useSimpleQuery = <T, D, E>(
-  promiseFunc: (params?: T) => Promise<D>,
+  promiseFuncParams: (params?: T) => Promise<D>,
   optionsParams?: QueryOptions<T, ChildrenPartial<D>, D>
 ) => {
   const queryStore = useRef(useInitializeStore());
 
-  const options = usePackageOptions<T, D>(optionsParams);
+  const options = usePackageOptions(optionsParams);
 
-  const preOptions = useRef<QueryOptions<T, ChildrenPartial<D>, D>>();
-
-  const [stage, setStage] = useState<'NORMAL' | 'RETRY'>('NORMAL');
+  const [promiseFunc] = useState(() => promiseFuncParams);
 
   useEffect(() => {
     const validate = validateOptions(options);
@@ -56,10 +55,7 @@ const useSimpleQuery = <T, D, E>(
     }
   }, [options]);
 
-  const [consumer, hasRequest] = usePromiseConsumer<T, D>(
-    setStage,
-    options.cacheKey
-  );
+  const [consumer, hasRequest] = usePromiseConsumer<T, D>();
 
   const {
     data,
@@ -68,79 +64,25 @@ const useSimpleQuery = <T, D, E>(
     setState,
     setStateWithStoreValue,
     haveBeenUsedRef,
-  } = useWatchState<T, D, E extends undefined ? any : E>({
-    initializeOptions: {
-      data: false,
-      loading: false,
-      error: false,
-    },
-    keys: options.cacheKey,
-    initializeData: options.initializeData,
-    queryStore: queryStore.current,
-  });
+  } = useWatchState<T, D, E extends undefined ? any : E>(
+    useMemo(
+      () => ({
+        initializeOptions: {
+          data: false,
+          loading: false,
+          error: false,
+        },
+        keys: options.cacheKey,
+        initializeData: options.initializeData,
+        queryStore: queryStore.current,
+      }),
+      [options]
+    )
+  );
 
   useSubscribeBroadcast(options?.cacheKey, (type) => {
     setStateWithStoreValue(type);
   });
-
-  const retryRequest = useCallback(() => {
-    const { cacheKey } = options;
-    const queue = queryStore.current.getWaitRetry(cacheKey);
-
-    const lastRequestParams =
-      queryStore.current.getLastParamsWithKey(cacheKey)?.originData;
-
-    const innerParams = cacheKey
-      ? lastRequestParams
-        ? lastRequestParams
-        : options.params
-      : options.params;
-
-    const lastRequest = queue?.slice(-1) || [
-      {
-        request: promiseFunc,
-        params: innerParams,
-      },
-    ];
-    queryStore.current.removeWaitRetry(cacheKey, lastRequest);
-    const requestTime = new Date().getTime();
-    lastRequest?.[0] &&
-      consumer(
-        lastRequest?.[0]?.request,
-        {
-          params: lastRequest?.[0]?.params,
-          cacheKey: cacheKey,
-          requestTime,
-          stage: 'retry',
-          use: options.use,
-          handle: {
-            onSuccess: options?.handle?.onSuccess,
-            onFail: options?.handle?.onFail,
-          },
-        },
-        setState
-      );
-  }, [options, promiseFunc, consumer, setState]);
-
-  useEffect(() => {
-    let intervalId: number;
-    let counter = 0;
-    if (stage === 'RETRY' && options?.retry) {
-      intervalId = setInterval(() => {
-        if (counter >= (options?.retryCount || 1)) {
-          options.handle?.onRetryComplete?.();
-          clearInterval(intervalId);
-          return;
-        }
-        console.log('Number of retries ' + (counter + 1));
-        counter += 1;
-        retryRequest();
-      }, options?.retryInterval || 500);
-    }
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [options, retryRequest, stage]);
 
   const innerRequest = useCallback(
     (target: 'manual' | 'normal', params?: T) => {
@@ -194,12 +136,11 @@ const useSimpleQuery = <T, D, E>(
 
   useEffect(() => {
     const { auto, params, cacheKey, loop } = options;
-    let intervalId: number;
-    if (auto && !loop && !deepComparison(preOptions.current, options)) {
+    if (auto && !loop) {
       const beCombinedParams = cacheKey
         ? queryStore.current.getLastParamsWithKey(cacheKey)?.originData
-        : preOptions.current?.params
-        ? preOptions.current?.params
+        : options?.params
+        ? options?.params
         : undefined;
       if (
         params &&
@@ -208,18 +149,7 @@ const useSimpleQuery = <T, D, E>(
       ) {
         return;
       }
-      preOptions.current = options;
-      queryStore.current.clearWaitRetry(cacheKey);
       innerRequest('normal', params);
-    }
-    if (auto && loop) {
-      queryStore.current.clearWaitRetry(cacheKey);
-      intervalId = setInterval(() => {
-        innerRequest('manual', params);
-      }, options.loopInterval || 1000);
-      return () => {
-        clearInterval(intervalId);
-      };
     }
   }, [innerRequest, options]);
 
@@ -242,7 +172,6 @@ const useSimpleQuery = <T, D, E>(
       setStateWithStoreValue('pre');
     },
     request: (params?: T) => {
-      queryStore.current.clearWaitRetry(options.cacheKey);
       innerRequest('manual', params);
     },
   };
@@ -251,8 +180,8 @@ const useSimpleQuery = <T, D, E>(
 export {
   deepComparison,
   SimpleQueryConfigProvider,
-  useConfigDispatch,
   useConfigState,
+  SimpleQueryStore,
 };
 
 export default useSimpleQuery;

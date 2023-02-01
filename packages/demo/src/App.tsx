@@ -1,52 +1,11 @@
 import { HashRouter } from 'react-router-dom';
 import Router from './config/router';
 import { SimpleQueryConfigProvider } from 'squery';
+import { ContextCache, ContextConfig } from 'squery/build/utils/configContext';
 
-export default () => {
+export default (params: { cache?: ContextCache; config?: ContextConfig }) => {
   return (
-    <SimpleQueryConfigProvider
-      cache={{
-        onCacheDataChange: (toLocalStorageObject) => {
-          localStorage.setItem(
-            'testCache',
-            JSON.stringify(toLocalStorageObject)
-          );
-        },
-        setCacheDataWithLocalStorage: () => {
-          try {
-            const cache = localStorage.getItem('testCache');
-            console.log(cache && JSON.parse(cache));
-            return cache && JSON.parse(cache);
-          } catch {
-            throw new Error('parse testCache fail');
-          }
-        },
-      }}
-      config={{
-        freshTime: 30 * 1000,
-        use: [
-          (params) => {
-            console.log(
-              params.type,
-              'a111',
-              'father',
-              params.result,
-              params.stage
-            );
-            return { ...params, stop: false };
-          },
-          (params) => {
-            console.log(
-              params.type,
-              'b222',
-              'father',
-              params.result,
-              params.stage
-            );
-            return { ...params, stop: false };
-          },
-        ],
-      }}>
+    <SimpleQueryConfigProvider {...(params || {})}>
       <HashRouter>
         <Router />
       </HashRouter>

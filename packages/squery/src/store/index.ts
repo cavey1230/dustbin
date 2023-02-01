@@ -11,20 +11,17 @@ export type RequestParamsCacheType = {
   last: CacheParamsType;
 };
 
-export type RetryQueueItem = {
-  request: (params: any) => Promise<any>;
-  params: any;
-};
-
 export class SimpleQueryStore {
-  private readonly responseData: WeakMap<object, any>;
+  private responseData: WeakMap<object, any>;
   private requestParams: Record<string, RequestParamsCacheType>;
-  private waitRetryQueue: Record<string, Array<RetryQueueItem>>;
-  private readonly options: ContextCache;
+  public readonly options: ContextCache;
 
   constructor(options?: ContextCache) {
-    this.waitRetryQueue = {};
     this.options = options || {};
+    this.setDataFromLocalStorage(options);
+  }
+
+  private setDataFromLocalStorage(options?: ContextCache) {
     const formatData = options?.setCacheDataWithLocalStorage?.()?.reduce(
       (store, item) => {
         const key = item?.[0];
@@ -91,41 +88,6 @@ export class SimpleQueryStore {
   throwTips(tips: string) {
     console.error(tips);
     return new TypeError(tips);
-  }
-
-  getWaitRetry(key: string) {
-    if (!key) return;
-    return this.waitRetryQueue?.[key] || [];
-  }
-
-  pushWaitRetry(key: string, request: RetryQueueItem) {
-    if (!key) return;
-    this.waitRetryQueue = {
-      ...this.waitRetryQueue,
-      [key]: [...(this.waitRetryQueue?.[key] || []), request],
-    };
-  }
-
-  clearWaitRetry(key: string) {
-    if (!key) return;
-    this.waitRetryQueue = {
-      ...this.waitRetryQueue,
-      [key]: [],
-    };
-  }
-
-  removeWaitRetry(key: string, requests: RetryQueueItem[]) {
-    if (!key) return;
-    const copyQueue = this.waitRetryQueue?.[key] || [];
-    if (copyQueue.length > 0) {
-      requests.forEach((item) => {
-        copyQueue?.splice(copyQueue.indexOf(item), 1);
-      });
-      this.waitRetryQueue = {
-        ...this.waitRetryQueue,
-        [key]: copyQueue,
-      };
-    }
   }
 
   getLastParamsWithKey(key: string) {
@@ -202,11 +164,6 @@ export class SimpleQueryStore {
     };
 
     this.responseData.set(packageParams, data);
-
-    console.log({
-      requestParams: this.requestParams,
-      responseData: this.responseData,
-    });
 
     this.options?.onCacheDataChange?.(
       this.toLocalStorageObject(this.requestParams, this.responseData)

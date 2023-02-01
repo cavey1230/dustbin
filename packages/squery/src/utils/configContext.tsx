@@ -1,12 +1,7 @@
-import React, {
-  createContext,
-  PropsWithChildren,
-  useContext,
-  useState,
-} from 'react';
+import React, { createContext, PropsWithChildren, useContext } from 'react';
 import { QueryOptions } from '../index';
 import { ChildrenPartial } from '../core';
-import { RequestParamsCacheType } from '../store';
+import { RequestParamsCacheType, SimpleQueryStore } from '../store';
 
 export type ContextConfig = {
   freshTime?: number;
@@ -30,39 +25,33 @@ export type ContextCache = {
     string,
     Record<'pre' | 'last', Record<string, any>>
   ][];
+  store?: SimpleQueryStore;
 };
 
 const ConfigState = createContext<ContextConfig>({});
-
-const ConfigDispatch =
-  createContext<React.Dispatch<React.SetStateAction<ContextConfig>>>(undefined);
 
 const ConfigCache = createContext<ContextCache>({});
 
 const SimpleQueryConfigProvider = ({
   children,
-  config: configParams,
+  config,
   cache,
 }: PropsWithChildren<{
-  config: ContextConfig;
-  cache: ContextCache;
+  config?: ContextConfig;
+  cache?: ContextCache;
 }>) => {
   if (
     cache &&
+    !cache.store &&
     (!cache.onCacheDataChange || !cache.setCacheDataWithLocalStorage)
   ) {
     throw new ReferenceError(
       '[onCacheDataChange] [setCacheDataWithLocalStorage] must be used together'
     );
   }
-  const [config, setConfig] = useState<ContextConfig>(configParams);
   return (
     <ConfigCache.Provider value={cache}>
-      <ConfigState.Provider value={config}>
-        <ConfigDispatch.Provider value={setConfig}>
-          {children}
-        </ConfigDispatch.Provider>
-      </ConfigState.Provider>
+      <ConfigState.Provider value={config}>{children}</ConfigState.Provider>
     </ConfigCache.Provider>
   );
 };
@@ -76,13 +65,4 @@ const useConfigState = () => {
   return useContext(ConfigState);
 };
 
-const useConfigDispatch = () => {
-  return useContext(ConfigDispatch);
-};
-
-export {
-  SimpleQueryConfigProvider,
-  useConfigState,
-  useConfigDispatch,
-  useConfigCache,
-};
+export { SimpleQueryConfigProvider, useConfigState, useConfigCache };

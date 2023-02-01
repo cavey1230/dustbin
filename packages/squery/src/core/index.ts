@@ -1,13 +1,6 @@
-import {
-  Dispatch,
-  SetStateAction,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import deepComparison from '../utils/deepComparison';
-import { RetryQueueItem, SimpleQueryStore } from '../store';
+import { SimpleQueryStore } from '../store';
 import { QueryOptions } from '../index';
 import { useConfigCache, useConfigState } from '../utils/configContext';
 import { startBroadcast } from '../utils/broadcast';
@@ -37,41 +30,67 @@ export type UserItemOptions<T, D> = {
 };
 
 export const useInitializeStore = () => {
-  const { onCacheDataChange, setCacheDataWithLocalStorage } = useConfigCache();
-  if (!globalStore) {
+  const { onCacheDataChange, setCacheDataWithLocalStorage, store } =
+    useConfigCache();
+
+  if (!globalStore && !store) {
     globalStore = new SimpleQueryStore({
       onCacheDataChange,
       setCacheDataWithLocalStorage,
     });
   }
+
+  if (store) {
+    return store;
+  }
+
   return globalStore;
 };
 
 export const usePackageOptions = <T, D>(
-  options: QueryOptions<T, ChildrenPartial<D>, D>
+  optionsParams: QueryOptions<T, ChildrenPartial<D>, D>
 ) => {
   const configStateContext = useConfigState();
 
-  if (configStateContext) {
-    return {
-      ...configStateContext,
-      ...options,
-      handle: {
-        onSuccess: (params: T, data: D) => {
-          configStateContext?.handle?.onSuccess?.(params, data);
-          options?.handle?.onSuccess?.(params, data);
-        },
-        onFail: (params: T, data: D) => {
-          configStateContext?.handle?.onFail?.(params, data);
-          options?.handle?.onFail?.(params, data);
-        },
-        onRetryComplete: () => {
-          configStateContext?.handle?.onRetryComplete?.();
-          options?.handle?.onRetryComplete?.();
-        },
-      },
-    };
-  }
+  const packageOptions = useCallback(
+    (options: typeof optionsParams) =>
+      configStateContext
+        ? {
+            ...configStateContext,
+            ...options,
+            handle: {
+              onSuccess: (params: T, data: D) => {
+                configStateContext?.handle?.onSuccess?.(params, data);
+                options?.handle?.onSuccess?.(params, data);
+              },
+              onFail: (params: T, data: D) => {
+                configStateContext?.handle?.onFail?.(params, data);
+                options?.handle?.onFail?.(params, data);
+              },
+              onRetryComplete: () => {
+                configStateContext?.handle?.onRetryComplete?.();
+                options?.handle?.onRetryComplete?.();
+              },
+              onRetry: (counter: number) => {
+                options?.handle?.onRetry?.(counter);
+              },
+            },
+          }
+        : options,
+    [configStateContext]
+  );
+
+  const [options, setOptions] = useState<typeof optionsParams>(
+    packageOptions(optionsParams)
+  );
+
+  useEffect(() => {
+    setOptions((prevState) =>
+      deepComparison(prevState, packageOptions(optionsParams))
+        ? prevState
+        : packageOptions(optionsParams)
+    );
+  }, [optionsParams, packageOptions]);
 
   return options;
 };
@@ -89,27 +108,24 @@ export const useIsUnmount = () => {
   return isUnmount;
 };
 
-export const usePromiseConsumer = <T, D>(
-  setStage: Dispatch<SetStateAction<'NORMAL' | 'RETRY'>>,
-  cacheKey: string
-) => {
+export const usePrevious = <T>(data: T) => {
+  const prev = useRef<T>();
+
+  useEffect(() => {
+    prev.current = data;
+  });
+
+  return prev;
+};
+
+export const usePromiseConsumer = <T, D>() => {
   const queryStore = useRef(useInitializeStore());
 
   const [hasRequest, setHasRequest] = useState<boolean>(false);
 
   const isUnmount = useIsUnmount();
 
-  const waitRetryQueueRef = useRef<RetryQueueItem[]>([]);
-
-  useEffect(() => {
-    const waitRetryQueue = waitRetryQueueRef.current;
-    const queryStoreCurrent = queryStore.current;
-    return () => {
-      queryStoreCurrent.removeWaitRetry(cacheKey, waitRetryQueue);
-    };
-  }, [cacheKey]);
-
-  return [
+  const consumer = useCallback(
     (
       promise: (params?: T) => Promise<D>,
       options: {
@@ -117,7 +133,10 @@ export const usePromiseConsumer = <T, D>(
         cacheKey: string;
         requestTime: number;
         stage: 'normal' | 'retry';
-        handle: QueryOptions<T, ChildrenPartial<D>, D>['handle'];
+        handle: Pick<
+          QueryOptions<T, ChildrenPartial<D>, D>['handle'],
+          'onSuccess' | 'onFail'
+        >;
         use: QueryOptions<T, ChildrenPartial<D>, D>['use'];
       },
       setState: (
@@ -128,7 +147,14 @@ export const usePromiseConsumer = <T, D>(
         type: keyof UseWatchStateInitializeOptions
       ) => void
     ) => {
-      const { params, cacheKey, requestTime, handle, use, stage } = options;
+      const {
+        params,
+        cacheKey,
+        requestTime,
+        handle: optionsHandle,
+        use,
+        stage,
+      } = options;
 
       const middlewareNeedParams = {
         cacheKey,
@@ -164,27 +190,17 @@ export const usePromiseConsumer = <T, D>(
             }
           }
           if (!isUnmount.current) {
-            setStage('NORMAL');
             const originData = middlewareFactory('after', result);
             if (originData.stop) return;
             setState({ data: originData.result, params }, 'data');
-            handle?.onSuccess?.(params, result);
+            optionsHandle?.onSuccess?.(params, result);
             startBroadcast(cacheKey, 'last');
           }
         })
         .catch((reason) => {
-          if (cacheKey) {
-            const waitRetryItem = {
-              request: promise,
-              params,
-            };
-            waitRetryQueueRef.current.push(waitRetryItem);
-            queryStore.current.pushWaitRetry(cacheKey, waitRetryItem);
-          }
           if (!isUnmount.current) {
-            setStage('RETRY');
             setState({ data: reason }, 'error');
-            handle?.onFail?.(params, reason);
+            optionsHandle?.onFail?.(params, reason);
           }
         })
         .finally(() => {
@@ -194,8 +210,10 @@ export const usePromiseConsumer = <T, D>(
           }
         });
     },
-    hasRequest,
-  ] as const;
+    [isUnmount]
+  );
+
+  return [consumer, hasRequest] as const;
 };
 
 export const useWatchState = <T, D, E>(options: {
@@ -234,10 +252,11 @@ export const useWatchState = <T, D, E>(options: {
       type: keyof UseWatchStateInitializeOptions
     ) => {
       if (haveBeenUsedRef.current.data && type === 'data') {
-        const judge = deepComparison(data, combined.data);
-        if (!judge) {
-          setData(combined.data as D);
-        }
+        setData((prevState) =>
+          deepComparison(prevState, combined.data)
+            ? prevState
+            : (combined.data as D)
+        );
         setError(undefined);
         options?.keys &&
           options.queryStore.setResponseData(
@@ -253,7 +272,7 @@ export const useWatchState = <T, D, E>(options: {
         setError(combined.data as E);
       }
     },
-    [data, options]
+    [options]
   );
 
   return {

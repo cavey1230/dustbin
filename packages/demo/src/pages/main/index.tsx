@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import ChildrenCom from 'pages/main/childrenCom';
+import ChildrenCom from './childrenCom';
 import useSimpleQuery from 'squery';
 
 import requestMock from '../../mock/requestMock';
+import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 export default () => {
   const [loop, setLoop] = useState<boolean>(false);
+
+  const [retryCounter, setRetryCounter] = useState<number>(0);
 
   const [stateParams, setStateParams] = useState<{
     pageNum: number;
@@ -24,58 +26,61 @@ export default () => {
         pageNum: number;
         sort?: string;
         pageSize?: number;
+        content?: string;
         type?: 'success' | 'fail';
       }) =>
-        // axios
-        //   .post<{
-        //     data: string;
-        //   }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
-        //     ...params,
-        //   })
-        //   .then(() => {
-        //     return Promise.reject('eeeee');
-        //   }),
-
-        // axios.post<{
-        //   data: string;
-        // }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
-        //   ...params,
-        // }),
         requestMock({
-          type: params?.type || 'fail',
-          content: 'test fail',
+          type: params?.type || 'success',
+          content: params?.content || 'initialize success',
           params,
         }),
+      // axios
+      //   .post<{
+      //     data: string;
+      //   }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+      //     ...params,
+      //   })
+      //   .then(() => {
+      //     return Promise.reject('eeeee');
+      //   }),
       {
         auto: true,
         loop: loop,
         retry: !loop,
+        // retry: true,
         cacheKey: 'list',
         params: stateParams,
         handle: {
-          onSuccess: () => {
-            console.log(111);
+          onSuccess: (_, data) => {
+            console.log('onSuccess ' + data);
           },
-          onFail: () => {
-            console.log(222);
+          onFail: (_, data) => {
+            console.log('onFail' + data);
           },
           onRetryComplete: () => {
-            console.log(333);
+            console.log('onRetryComplete');
+            setRetryCounter(0);
+          },
+          onRetry: (counter) => {
+            setRetryCounter(counter);
+            console.log(counter);
           },
         },
       }
     );
 
-  const router = useNavigate();
-
   const [unmount, setUnmount] = useState<boolean>(false);
 
   return (
     <div>
-      <div>{JSON.stringify(data)}</div>
-      <div>{loading.toString()}</div>
-      <div>{JSON.stringify(error)}</div>
-      <div>{hasRequest.toString()}</div>
+      <div>main page init success</div>
+      <div data-testid={'data'}>{JSON.stringify(data)}</div>
+      <div data-testid={'loading'}>{loading.toString()}</div>
+      <div data-testid={'error'}>{JSON.stringify(error)}</div>
+      <div data-testid={'hasRequest'}>{hasRequest.toString()}</div>
+      <div data-testid={'retryCounter'}>
+        retryCounter {retryCounter.toString()}
+      </div>
 
       <div style={{ border: '1px solid black' }}>
         {!unmount && <ChildrenCom />}
@@ -89,12 +94,8 @@ export default () => {
         </button>
       </div>
 
-      <button
-        onClick={() => {
-          router('/empty');
-        }}>
-        go empty
-      </button>
+      <Link to={'/empty'}>go empty</Link>
+
       <button
         onClick={() => {
           setLoop((prevState) => !prevState);
@@ -102,24 +103,29 @@ export default () => {
         loop switch {loop.toString()}
       </button>
       <button
+        data-testid={'requestPrev'}
         onClick={() => {
           request();
         }}>
         manual request prev
       </button>
       <button
+        data-testid={'manualRequestPageNum3Success'}
         onClick={() => {
           request({
             pageNum: 3,
+            content: 'manual request test',
             type: 'success',
           });
         }}>
         manual request page3 success
       </button>
       <button
+        data-testid={'manualRequestPageNum4Fail'}
         onClick={() => {
           request({
             pageNum: 4,
+            content: 'manual request test',
             type: 'fail',
           });
         }}>
@@ -132,18 +138,19 @@ export default () => {
             type: 'success',
           });
         }}>
-        manual request success
+        manual request page4 success
       </button>
       <button
         onClick={() => {
           setStateParams({
-            pageNum: 4,
+            pageNum: 5,
             type: 'success',
           });
         }}>
-        auto request success
+        auto request page5 success
       </button>
       <button
+        data-testid={'rollback'}
         onClick={() => {
           rollback();
         }}>

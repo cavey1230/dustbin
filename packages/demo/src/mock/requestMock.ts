@@ -5,8 +5,10 @@ export default (config: {
 }) => {
   const { type, content, params } = config;
   return new Promise((resolve, reject) => {
-    return type === 'success'
-      ? resolve('success' + content + JSON.stringify(params))
-      : reject('fail' + content + JSON.stringify(params));
+    setTimeout(() => {
+      return type === 'success'
+        ? resolve('success ' + content + JSON.stringify(params))
+        : reject('fail ' + content + JSON.stringify(params));
+    }, 1000);
   });
 };
