@@ -240,12 +240,11 @@ const useSimpleQuery = <T, D, E>(
       haveBeenUsedRef.current.error = true;
       return error;
     },
-    hasRequest: hasRequest,
+    hasRequest,
     rollback: () => {
       queryStore.current.clearWaitRetry(options.cacheKey);
       startBroadcast(options.cacheKey, 'pre');
       queryStore.current.reverseParams(options.cacheKey);
-      setStateWithStoreValue('pre');
     },
     request: (params?: T) => {
       queryStore.current.clearWaitRetry(options.cacheKey);

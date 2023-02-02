@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import App from '../packages/demo/src/App';
+import { SimpleQueryStore } from 'squery';
 
 export const sleep = (time?: number) => {
   return new Promise((resolve) => {
@@ -21,7 +22,7 @@ const checkRenderSuccess = async () => {
   await sleep(1800);
 
   expect(screen.getByTestId('data').innerHTML).toContain(
-    '"success initialize success{\\"pageNum\\":2}"'
+    '"success initialize success{\\"pageNum\\":2,\\"type\\":\\"success\\"}"'
   );
 };
 
@@ -50,12 +51,15 @@ describe('initialize stage', () => {
     const { getByTestId } = render(
       <App
         cache={{
-          onCacheDataChange: (value) => {
-            cache = value;
-          },
-          setCacheDataWithLocalStorage: () => {
-            return cache;
-          },
+          store: new SimpleQueryStore({
+            onCacheDataChange: (value) => {
+              console.log(value);
+              cache = value;
+            },
+            setCacheDataWithLocalStorage: () => {
+              return cache;
+            },
+          }),
         }}
         config={{
           retry: true,
@@ -71,64 +75,84 @@ describe('initialize stage', () => {
   });
 });
 
-describe('manual request stage', () => {
-  test('success params {pageNum:3,content:manual request test}', async () => {
-    const { getByTestId } = render(<App />);
+describe(
+  'manual request stage',
+  () => {
+    test('success params {pageNum:3,content:manual request test}', async () => {
+      const { getByTestId } = render(<App />);
 
-    await checkRenderSuccess();
+      await checkRenderSuccess();
 
-    fireEvent.click(getByTestId('manualRequestPageNum3Success'));
+      fireEvent.click(getByTestId('manualRequestPageNum3Success'));
 
-    await sleep(1200);
+      await sleep(1200);
 
-    await validateRequestData();
+      await validateRequestData();
 
-    expect(getByTestId('hasRequest').innerHTML).toContain('true');
+      expect(getByTestId('hasRequest').innerHTML).toContain('true');
 
-    fireEvent.click(getByTestId('requestPrev'));
+      fireEvent.click(getByTestId('requestPrev'));
 
-    await sleep(1200);
+      await sleep(1200);
 
-    await validateRequestData();
+      await validateRequestData();
 
-    fireEvent.click(getByTestId('rollback'));
+      fireEvent.click(getByTestId('rollback'));
 
-    await validateRequestData();
-  });
+      await validateRequestData();
+    });
 
-  test('fail params {pageNum:4,content:manual request test}', async () => {
-    const { getByTestId } = render(<App />);
+    test('fail params {pageNum:4,content:manual request test}', async () => {
+      const { getByTestId } = render(<App config={{ retryCount: 3 }} />);
 
-    await checkRenderSuccess();
+      await checkRenderSuccess();
 
-    fireEvent.click(getByTestId('manualRequestPageNum4Fail'));
+      fireEvent.click(getByTestId('manualRequestPageNum4Fail'));
 
-    await sleep(1200);
+      await sleep(1200);
 
-    expect(getByTestId('error').innerHTML).toContain(
-      '"fail manual request test{\\"pageNum\\":4,\\"content\\":\\"manual request test\\",\\"type\\":\\"fail\\"}"'
-    );
+      expect(getByTestId('error').innerHTML).toContain(
+        '"fail manual request test{\\"pageNum\\":4,\\"content\\":\\"manual request test\\",\\"type\\":\\"fail\\"}"'
+      );
 
-    expect(getByTestId('data').innerHTML).toContain(
-      '"success initialize success{\\"pageNum\\":2}"'
-    );
+      expect(getByTestId('data').innerHTML).toContain(
+        '"success initialize success{\\"pageNum\\":2,\\"type\\":\\"success\\"}"'
+      );
 
-    await sleep(1200);
+      await sleep(1200);
 
-    expect(getByTestId('retryCounter').innerHTML).toContain('retryCounter 1');
+      expect(getByTestId('retryCounter').innerHTML).toContain('retryCounter 1');
 
-    fireEvent.click(getByTestId('manualRequestPageNum3Success'));
+      await sleep(1200);
 
-    await sleep(1200);
+      expect(getByTestId('retryCounter').innerHTML).toContain('retryCounter 2');
 
-    await validateRequestData();
+      await sleep(1200);
 
-    expect(getByTestId('error').innerHTML).not.toBeTruthy();
+      expect(getByTestId('retryCounter').innerHTML).toContain('retryCounter 3');
 
-    fireEvent.click(getByTestId('rollback'));
+      await sleep(1200);
 
-    expect(getByTestId('data').innerHTML).toContain(
-      '"success initialize success{\\"pageNum\\":2}"'
-    );
-  });
-});
+      expect(getByTestId('retryCounter').innerHTML).toContain('retryCounter 0');
+
+      fireEvent.click(getByTestId('manualRequestPageNum3Success'));
+
+      await sleep(1200);
+
+      await validateRequestData();
+
+      expect(getByTestId('error').innerHTML).not.toBeTruthy();
+
+      fireEvent.click(getByTestId('rollback'));
+
+      expect(getByTestId('data').innerHTML).toContain(
+        '"success initialize success{\\"pageNum\\":2,\\"type\\":\\"success\\"}"'
+      );
+
+      fireEvent.click(getByTestId('rollback'));
+
+      await validateRequestData();
+    });
+  },
+  { timeout: 30000 }
+);
