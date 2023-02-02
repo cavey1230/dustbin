@@ -20,6 +20,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     }}
     config={{
       freshTime: 30 * 1000,
+      retryCount: 3,
       use: [
         (params) => {
           console.log(

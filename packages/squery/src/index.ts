@@ -33,8 +33,13 @@ export type QueryOptions<T, CD, D> = {
   handle?: {
     onSuccess?: (params: T, data: D) => void;
     onFail?: (params: T, data: D) => void;
-    onRetryComplete?: () => void;
-    onRetry?: (counter: number) => void;
+    onRetryComplete?: (cacheKey: string, time: number) => void;
+    onRetry?: (
+      cacheKey: string,
+      params: any,
+      time: number,
+      counter: number
+    ) => void;
   };
 };
 
@@ -48,6 +53,8 @@ const useSimpleQuery = <T, D, E>(
 
   const [promiseFunc] = useState(() => promiseFuncParams);
 
+  const intervalId = useRef<number>();
+
   useEffect(() => {
     const validate = validateOptions(options);
     if (validate) {
@@ -55,7 +62,9 @@ const useSimpleQuery = <T, D, E>(
     }
   }, [options]);
 
-  const [consumer, hasRequest] = usePromiseConsumer<T, D>();
+  const [consumer, hasRequest, mode, setMode] = usePromiseConsumer<T, D>(
+    options.cacheKey
+  );
 
   const {
     data,
@@ -76,17 +85,34 @@ const useSimpleQuery = <T, D, E>(
         initializeData: options.initializeData,
         queryStore: queryStore.current,
       }),
-      [options]
+      [options.cacheKey, options.initializeData]
     )
   );
 
-  useSubscribeBroadcast(options?.cacheKey, (type) => {
-    setStateWithStoreValue(type);
-  });
+  useSubscribeBroadcast(
+    options?.cacheKey,
+    useCallback(
+      (type: 'pre' | 'last') => {
+        setStateWithStoreValue(type);
+      },
+      [setStateWithStoreValue]
+    )
+  );
 
   const innerRequest = useCallback(
-    (target: 'manual' | 'normal', params?: T) => {
-      const { cacheKey, params: optionsParams, freshTime } = options || {};
+    (
+      target: 'MANUAL' | 'NORMAL',
+      outOptions: typeof options,
+      params: T,
+      finishCallback?: () => void
+    ) => {
+      const {
+        cacheKey,
+        params: optionsParams,
+        freshTime,
+        use,
+        handle,
+      } = outOptions;
       const requestTime = new Date().getTime();
       const lastRequestParams =
         queryStore.current.getLastParamsWithKey(cacheKey)?.originData;
@@ -98,7 +124,7 @@ const useSimpleQuery = <T, D, E>(
           : optionsParams
         : optionsParams;
 
-      if (cacheKey && target === 'normal') {
+      if (cacheKey && target === 'NORMAL') {
         const { dataWithWrapper, originData } =
           queryStore.current.getLastParamsWithKey(cacheKey);
 
@@ -122,36 +148,84 @@ const useSimpleQuery = <T, D, E>(
           cacheKey,
           requestTime,
           stage: 'normal',
-          use: options.use,
+          use,
           handle: {
-            onSuccess: options?.handle?.onSuccess,
-            onFail: options?.handle?.onFail,
+            onSuccess: handle?.onSuccess,
+            onFail: handle?.onFail,
           },
         },
+        finishCallback,
         setState
       );
     },
-    [options, setState, consumer, promiseFunc]
+    [setState, consumer, promiseFunc]
   );
 
   useEffect(() => {
-    const { auto, params, cacheKey, loop } = options;
+    const { auto, params, loop } = options;
     if (auto && !loop) {
-      const beCombinedParams = cacheKey
-        ? queryStore.current.getLastParamsWithKey(cacheKey)?.originData
-        : options?.params
-        ? options?.params
-        : undefined;
-      if (
-        params &&
-        beCombinedParams &&
-        deepComparison(params, beCombinedParams)
-      ) {
-        return;
-      }
-      innerRequest('normal', params);
+      queryStore.current.clearWaitRetry(options.cacheKey);
+      innerRequest('NORMAL', options, params);
     }
   }, [innerRequest, options]);
+
+  useEffect(() => {
+    const { auto, loop, cacheKey, loopInterval, params } = options;
+    const lastParams = queryStore.current.getLastParamsWithKey(cacheKey);
+
+    if (auto && loop) {
+      let canRequest = false;
+      queryStore.current.clearWaitRetry(options.cacheKey);
+      const innerParams = lastParams.originData || params;
+      const request = () => {
+        innerRequest('MANUAL', options, innerParams, () => {
+          canRequest = true;
+        });
+      };
+      clearInterval(intervalId.current);
+      request();
+      intervalId.current = setInterval(() => {
+        if (!canRequest) return;
+        canRequest = false;
+        request();
+      }, loopInterval || 1000);
+    }
+    return () => {
+      clearInterval(intervalId.current);
+    };
+  }, [innerRequest, options]);
+
+  useEffect(() => {
+    const { retry, retryCount, retryInterval, cacheKey, handle } = options;
+    if (mode === 'RETRY' && retry) {
+      let canRequest = true;
+      let counter = 0;
+      clearInterval(intervalId.current);
+      const queue = queryStore.current.getWaitRetry(cacheKey);
+      const lastWaitRetry = queue?.slice(-1);
+      const params = lastWaitRetry?.[0]?.params;
+      queryStore.current.removeWaitRetry(cacheKey, lastWaitRetry);
+      intervalId.current = setInterval(() => {
+        if (!canRequest) return;
+        if (counter >= (retryCount || 1)) {
+          clearInterval(intervalId.current);
+          setMode('NORMAL');
+          queryStore.current.clearWaitRetry(options.cacheKey);
+          handle.onRetryComplete(cacheKey, new Date().getTime());
+          return;
+        }
+        counter += 1;
+        handle.onRetry(cacheKey, params, new Date().getTime(), counter);
+        canRequest = false;
+        innerRequest('MANUAL', options, params, () => {
+          canRequest = true;
+        });
+      }, retryInterval || 1000);
+      return () => {
+        clearInterval(intervalId.current);
+      };
+    }
+  }, [innerRequest, mode, options, setMode]);
 
   return {
     get data() {
@@ -168,11 +242,14 @@ const useSimpleQuery = <T, D, E>(
     },
     hasRequest: hasRequest,
     rollback: () => {
+      queryStore.current.clearWaitRetry(options.cacheKey);
       startBroadcast(options.cacheKey, 'pre');
+      queryStore.current.reverseParams(options.cacheKey);
       setStateWithStoreValue('pre');
     },
     request: (params?: T) => {
-      innerRequest('manual', params);
+      queryStore.current.clearWaitRetry(options.cacheKey);
+      innerRequest('MANUAL', options, params);
     },
   };
 };

@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import deepComparison from '../utils/deepComparison';
-import { SimpleQueryStore } from '../store';
+import { RetryQueueItem, SimpleQueryStore } from '../store';
 import { QueryOptions } from '../index';
 import { useConfigCache, useConfigState } from '../utils/configContext';
 import { startBroadcast } from '../utils/broadcast';
@@ -27,6 +33,18 @@ export type UserItemOptions<T, D> = {
   stage: 'normal' | 'retry';
   requestTime: number;
   result?: D;
+};
+
+export type ConsumerOptions<T, D> = {
+  params: T;
+  cacheKey: string;
+  requestTime: number;
+  stage: 'normal' | 'retry';
+  handle: Pick<
+    QueryOptions<T, ChildrenPartial<D>, D>['handle'],
+    'onSuccess' | 'onFail'
+  >;
+  use: QueryOptions<T, ChildrenPartial<D>, D>['use'];
 };
 
 export const useInitializeStore = () => {
@@ -67,12 +85,17 @@ export const usePackageOptions = <T, D>(
                 configStateContext?.handle?.onFail?.(params, data);
                 options?.handle?.onFail?.(params, data);
               },
-              onRetryComplete: () => {
-                configStateContext?.handle?.onRetryComplete?.();
-                options?.handle?.onRetryComplete?.();
+              onRetryComplete: (cacheKey: string, time: number) => {
+                configStateContext?.handle?.onRetryComplete?.(cacheKey, time);
+                options?.handle?.onRetryComplete?.(cacheKey, time);
               },
-              onRetry: (counter: number) => {
-                options?.handle?.onRetry?.(counter);
+              onRetry: (
+                cacheKey: string,
+                params: any,
+                time: number,
+                counter: number
+              ) => {
+                options?.handle?.onRetry?.(cacheKey, params, time, counter);
               },
             },
           }
@@ -108,112 +131,114 @@ export const useIsUnmount = () => {
   return isUnmount;
 };
 
-export const usePrevious = <T>(data: T) => {
-  const prev = useRef<T>();
-
-  useEffect(() => {
-    prev.current = data;
-  });
-
-  return prev;
-};
-
-export const usePromiseConsumer = <T, D>() => {
+export const usePromiseConsumer = <T, D>(cacheKey: string) => {
   const queryStore = useRef(useInitializeStore());
 
   const [hasRequest, setHasRequest] = useState<boolean>(false);
 
-  const isUnmount = useIsUnmount();
+  const [mode, setMode] = useState<'RETRY' | 'NORMAL'>('NORMAL');
+
+  const isUnmount: MutableRefObject<boolean> = useIsUnmount();
+
+  const waitRetryList = useRef<RetryQueueItem[]>([]);
+
+  useEffect(() => {
+    const innerWaitRetryList = waitRetryList;
+    const innerQueryStore = queryStore;
+    return () => {
+      innerQueryStore.current.removeWaitRetry(
+        cacheKey,
+        innerWaitRetryList.current
+      );
+    };
+  }, [cacheKey]);
+
+  const middlewareFactory = useCallback(
+    (type: 'after' | 'before', options: ConsumerOptions<T, D>, result?: D) => {
+      const { use, cacheKey, params, stage, requestTime } = options;
+      let originData: UserItemOptions<T, D> = {
+        type,
+        stop: false,
+        cacheKey,
+        params,
+        stage,
+        requestTime,
+        result: result,
+      };
+      if (use && use.length > 0) {
+        use?.forEach((item) => {
+          originData = originData.stop ? originData : item(originData);
+        });
+      }
+      return originData;
+    },
+    []
+  );
 
   const consumer = useCallback(
     (
       promise: (params?: T) => Promise<D>,
-      options: {
-        params: T;
-        cacheKey: string;
-        requestTime: number;
-        stage: 'normal' | 'retry';
-        handle: Pick<
-          QueryOptions<T, ChildrenPartial<D>, D>['handle'],
-          'onSuccess' | 'onFail'
-        >;
-        use: QueryOptions<T, ChildrenPartial<D>, D>['use'];
-      },
+      options: ConsumerOptions<T, D>,
+      finishCallback: () => void,
       setState: (
         combined: {
           data: D | boolean;
           params?: T;
+          REQUEST_TIME?: number;
         },
         type: keyof UseWatchStateInitializeOptions
       ) => void
     ) => {
-      const {
-        params,
-        cacheKey,
-        requestTime,
-        handle: optionsHandle,
-        use,
-        stage,
-      } = options;
+      const { params, cacheKey, requestTime, handle: optionsHandle } = options;
 
-      const middlewareNeedParams = {
-        cacheKey,
-        params,
-        stage,
-        requestTime,
-      };
-
-      const middlewareFactory = (type: 'after' | 'before', result?: D) => {
-        let originData: UserItemOptions<T, D> = {
-          type,
-          stop: false,
-          ...middlewareNeedParams,
-          result: result,
-        };
-        if (use && use.length > 0) {
-          use?.forEach((item) => {
-            originData = originData.stop ? originData : item(originData);
-          });
-        }
-        return originData;
-      };
-
-      const originData = middlewareFactory('before');
+      const originData = middlewareFactory('before', options);
       if (originData.stop) return;
       promise(params)
         ?.then((result) => {
           if (cacheKey) {
             const { dataWithWrapper } =
               queryStore.current.getLastParamsWithKey(cacheKey);
-            if (dataWithWrapper && requestTime < dataWithWrapper.CREATE_TIME) {
+            if (dataWithWrapper && requestTime < dataWithWrapper.REQUEST_TIME) {
               return;
             }
           }
           if (!isUnmount.current) {
-            const originData = middlewareFactory('after', result);
+            setMode('NORMAL');
+            const originData = middlewareFactory('after', options, result);
             if (originData.stop) return;
-            setState({ data: originData.result, params }, 'data');
+            setState(
+              { data: originData.result, params, REQUEST_TIME: requestTime },
+              'data'
+            );
             optionsHandle?.onSuccess?.(params, result);
             startBroadcast(cacheKey, 'last');
           }
         })
         .catch((reason) => {
           if (!isUnmount.current) {
+            const waitRetryItem = {
+              request: promise,
+              params: params,
+            };
+            waitRetryList.current = [...waitRetryList.current, waitRetryItem];
+            queryStore.current.pushWaitRetry(cacheKey, waitRetryItem);
+            setMode('RETRY');
             setState({ data: reason }, 'error');
             optionsHandle?.onFail?.(params, reason);
           }
         })
         .finally(() => {
           if (!isUnmount.current) {
+            finishCallback?.();
             setHasRequest(true);
             setState({ data: false }, 'loading');
           }
         });
     },
-    [isUnmount]
+    [isUnmount, middlewareFactory]
   );
 
-  return [consumer, hasRequest] as const;
+  return [consumer, hasRequest, mode, setMode] as const;
 };
 
 export const useWatchState = <T, D, E>(options: {
@@ -239,15 +264,19 @@ export const useWatchState = <T, D, E>(options: {
       } as UseWatchStateInitializeOptions)
   );
 
-  const setStateWithStoreValue = (type: 'pre' | 'last') => {
-    setData(options.queryStore.getDataByParams(options.keys, type));
-  };
+  const setStateWithStoreValue = useCallback(
+    (type: 'pre' | 'last') => {
+      setData(options.queryStore.getDataByParams(options.keys, type));
+    },
+    [options]
+  );
 
   const setState = useCallback(
     (
       combined: {
         data: D | E | boolean;
         params?: T;
+        REQUEST_TIME?: number;
       },
       type: keyof UseWatchStateInitializeOptions
     ) => {
@@ -261,7 +290,9 @@ export const useWatchState = <T, D, E>(options: {
         options?.keys &&
           options.queryStore.setResponseData(
             options?.keys,
-            combined.params || { EMPTY_PARAMS: true },
+            combined.params
+              ? { ...combined.params, REQUEST_TIME: combined.REQUEST_TIME }
+              : { EMPTY_PARAMS: true },
             combined.data as D
           );
       }

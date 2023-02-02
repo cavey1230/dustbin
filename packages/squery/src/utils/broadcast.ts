@@ -18,10 +18,23 @@ export const useSubscribeBroadcast = (
 ) => {
   useEffect(() => {
     if (!cacheKey) return;
-    const cacheKeyListeners = simpleQueryBroadcastListeners?.[cacheKey] || [];
-    simpleQueryBroadcastListeners[cacheKey] = [...cacheKeyListeners, listener];
+
+    const findListenerIndex = (
+      simpleQueryBroadcastListeners[cacheKey] || []
+    ).indexOf(listener);
+
+    if (findListenerIndex >= 0) return;
+    if (!simpleQueryBroadcastListeners[cacheKey]) {
+      simpleQueryBroadcastListeners[cacheKey] = [];
+    }
+
+    simpleQueryBroadcastListeners[cacheKey].push(listener);
+
     return () => {
-      cacheKeyListeners?.splice(cacheKeyListeners.indexOf(listener), 1);
+      simpleQueryBroadcastListeners[cacheKey]?.splice(
+        simpleQueryBroadcastListeners[cacheKey].indexOf(listener),
+        1
+      );
     };
   }, [cacheKey, listener]);
 };

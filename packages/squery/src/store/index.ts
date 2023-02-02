@@ -4,6 +4,7 @@ type CacheParamsType = Record<any, any> & {
   SIMPLE_QUERY_KEY: string;
   CREATE_TIME: number;
   EMPTY_PARAMS?: true;
+  REQUEST_TIME?: number;
 };
 
 export type RequestParamsCacheType = {
@@ -11,12 +12,19 @@ export type RequestParamsCacheType = {
   last: CacheParamsType;
 };
 
+export type RetryQueueItem = {
+  request: (params: any) => Promise<any>;
+  params: any;
+};
+
 export class SimpleQueryStore {
   private responseData: WeakMap<object, any>;
   private requestParams: Record<string, RequestParamsCacheType>;
+  private waitRetryQueue: Record<string, Array<RetryQueueItem>>;
   public readonly options: ContextCache;
 
   constructor(options?: ContextCache) {
+    this.waitRetryQueue = {};
     this.options = options || {};
     this.setDataFromLocalStorage(options);
   }
@@ -90,13 +98,53 @@ export class SimpleQueryStore {
     return new TypeError(tips);
   }
 
+  getWaitRetry(key: string) {
+    if (!key) return;
+    return this.waitRetryQueue?.[key] || [];
+  }
+
+  pushWaitRetry(key: string, request: RetryQueueItem) {
+    if (!key) return;
+    this.waitRetryQueue = {
+      ...this.waitRetryQueue,
+      [key]: [...(this.waitRetryQueue?.[key] || []), request],
+    };
+  }
+
+  clearWaitRetry(key: string) {
+    if (!key) return;
+    this.waitRetryQueue = {
+      ...this.waitRetryQueue,
+      [key]: [],
+    };
+  }
+
+  removeWaitRetry(key: string, requests: RetryQueueItem[]) {
+    if (!key) return;
+    const copyQueue = this.waitRetryQueue?.[key] || [];
+    if (copyQueue.length > 0) {
+      requests.forEach((item) => {
+        copyQueue?.splice(copyQueue.indexOf(item), 1);
+      });
+      this.waitRetryQueue = {
+        ...this.waitRetryQueue,
+        [key]: copyQueue,
+      };
+    }
+  }
+
   getLastParamsWithKey(key: string) {
+    if (!key) return;
     const findRequestParams = this.requestParams?.[key];
     if (findRequestParams && findRequestParams?.last) {
       return {
         originData: Object.keys(findRequestParams?.last)?.reduce(
           (store, item) => {
-            if (!['SIMPLE_QUERY_KEY', 'CREATE_TIME'].includes(item)) {
+            if (
+              !['SIMPLE_QUERY_KEY', 'CREATE_TIME', 'REQUEST_TIME'].includes(
+                item
+              )
+            ) {
               store[item] = findRequestParams?.last?.[item];
             }
             return store;
@@ -120,6 +168,32 @@ export class SimpleQueryStore {
       this.responseData.has(keyOfObject?.[type])
     ) {
       return this.responseData.get(keyOfObject?.[type]);
+    }
+  }
+
+  reverseParams(key: string) {
+    if (!key) return;
+    const lastParams = this.requestParams?.[key].last;
+    const preParams = this.requestParams?.[key].pre;
+    if (
+      lastParams &&
+      Object.keys(lastParams).length > 0 &&
+      preParams &&
+      Object.keys(preParams).length > 0
+    ) {
+      const copyParams = { ...this.requestParams?.[key] };
+      this.requestParams = {
+        ...this.requestParams,
+        [key]: {
+          pre: copyParams.last,
+          last: copyParams.pre,
+        },
+      };
+      this.options?.onCacheDataChange?.(
+        this.toLocalStorageObject(this.requestParams, this.responseData)
+      );
+    } else {
+      throw this.throwTips(`not found previous params on cacheKey [${key}]`);
     }
   }
 

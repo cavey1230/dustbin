@@ -15,9 +15,12 @@ export default () => {
     pageNum: number;
     sort?: string;
     pageSize?: number;
+    content?: string;
     type?: 'success' | 'fail';
   }>({
     pageNum: 2,
+    type: 'success',
+    // content: 'initialize fail',
   });
 
   const { data, loading, error, hasRequest, request, rollback } =
@@ -34,6 +37,7 @@ export default () => {
           content: params?.content || 'initialize success',
           params,
         }),
+
       // axios
       //   .post<{
       //     data: string;
@@ -43,6 +47,12 @@ export default () => {
       //   .then(() => {
       //     return Promise.reject('eeeee');
       //   }),
+
+      // axios.post<{
+      //   data: string;
+      // }>('https://api.gclivekit.site/api/v1/common/gameRole/list', {
+      //   ...params,
+      // }),
       {
         auto: true,
         loop: loop,
@@ -57,13 +67,13 @@ export default () => {
           onFail: (_, data) => {
             console.log('onFail' + data);
           },
-          onRetryComplete: () => {
-            console.log('onRetryComplete');
+          onRetryComplete: (cacheKey, time) => {
+            console.log('onRetryComplete', cacheKey, time);
             setRetryCounter(0);
           },
-          onRetry: (counter) => {
+          onRetry: (cacheKey, params, time, counter) => {
             setRetryCounter(counter);
-            console.log(counter);
+            console.log(cacheKey, params, time, counter);
           },
         },
       }
@@ -78,9 +88,7 @@ export default () => {
       <div data-testid={'loading'}>{loading.toString()}</div>
       <div data-testid={'error'}>{JSON.stringify(error)}</div>
       <div data-testid={'hasRequest'}>{hasRequest.toString()}</div>
-      <div data-testid={'retryCounter'}>
-        retryCounter {retryCounter.toString()}
-      </div>
+      <div data-testid={'retryCounter'}>retryCounter {retryCounter}</div>
 
       <div style={{ border: '1px solid black' }}>
         {!unmount && <ChildrenCom />}

@@ -1,4 +1,9 @@
-import React, { createContext, PropsWithChildren, useContext } from 'react';
+import React, {
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useState,
+} from 'react';
 import { QueryOptions } from '../index';
 import { ChildrenPartial } from '../core';
 import { RequestParamsCacheType, SimpleQueryStore } from '../store';
@@ -13,7 +18,7 @@ export type ContextConfig = {
   handle?: {
     onSuccess?: (params: any, data: any) => void;
     onFail?: (params: any, data: any) => void;
-    onRetryComplete?: () => void;
+    onRetryComplete?: (cacheKey: string, time: number) => void;
   };
 };
 
@@ -49,9 +54,16 @@ const SimpleQueryConfigProvider = ({
       '[onCacheDataChange] [setCacheDataWithLocalStorage] must be used together'
     );
   }
+
+  const [innerCache] = useState(cache);
+
+  const [innerConfig] = useState(config);
+
   return (
-    <ConfigCache.Provider value={cache}>
-      <ConfigState.Provider value={config}>{children}</ConfigState.Provider>
+    <ConfigCache.Provider value={innerCache}>
+      <ConfigState.Provider value={innerConfig}>
+        {children}
+      </ConfigState.Provider>
     </ConfigCache.Provider>
   );
 };
