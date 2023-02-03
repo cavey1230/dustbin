@@ -21,8 +21,8 @@
   "author": "cavey1230",
   "license": "MIT",
   "peerDependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": ">=17.0.0",
+    "react-dom": ">=17.0.0"
   },
   "files": [
     "build"
