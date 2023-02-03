@@ -1,4 +1,4 @@
-import useSimpleQuery from 'dustbin';
+import useSimpleQuery from 'dustbin-react';
 
 export default () => {
   const { data, request } = useSimpleQuery(

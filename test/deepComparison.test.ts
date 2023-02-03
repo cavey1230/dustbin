@@ -1,4 +1,4 @@
-import { deepComparison } from 'dustbin';
+import { deepComparison } from 'dustbin-react';
 import { describe, expect, test } from 'vitest';
 
 describe('test with value type', () => {

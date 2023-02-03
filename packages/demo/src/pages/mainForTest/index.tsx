@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ChildrenCom from './childrenCom';
-import useSimpleQuery from 'dustbin';
+import useSimpleQuery from 'dustbin-react';
 
 import './sytle.css';
 

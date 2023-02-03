@@ -6,7 +6,7 @@ import terser from '@rollup/plugin-terser';
 import { DEFAULT_EXTENSIONS } from '@babel/core';
 import pkg from './package.json';
 
-const name = 'dustbin';
+const name = 'dustbin-react';
 
 export default () => {
   const isProd = process.env.ENV === 'production';

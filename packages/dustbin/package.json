@@ -1,5 +1,5 @@
 {
-  "name": "dustbin",
+  "name": "dustbin-react",
   "version": "0.0.1",
   "description": "",
   "main": "./build/index.js",

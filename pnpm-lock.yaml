@@ -28,7 +28,7 @@ importers:
       '@vitest/coverage-c8': ^0.28.3
       '@vitest/ui': ^0.27.3
       axios: ^1.1.3
-      dustbin: workspace:*
+      dustbin-react: workspace:*
       eslint: ^8.31.0
       eslint-config-prettier: ^8.6.0
       eslint-plugin-prettier: ^4.2.1
@@ -75,7 +75,7 @@ importers:
       '@vitest/coverage-c8': 0.28.3_wisonnu234udalsgswp3rzd7rm
       '@vitest/ui': 0.27.3
       axios: 1.2.3
-      dustbin: link:packages/dustbin
+      dustbin-react: link:packages/dustbin
       eslint: 8.31.0
       eslint-config-prettier: 8.6.0_eslint@8.31.0
       eslint-plugin-prettier: 4.2.1_iu5s7nk6dw7o3tajefwfiqfmge
