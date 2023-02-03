@@ -44,14 +44,14 @@ export type QueryOptions<T, CD, D> = {
 };
 
 const useSimpleQuery = <T, D, E>(
-  promiseFuncParams: (params?: T) => Promise<D>,
-  optionsParams?: QueryOptions<T, ChildrenPartial<D>, D>
+  promiseFuncByParams: (params?: T) => Promise<D>,
+  optionsByParams?: QueryOptions<T, ChildrenPartial<D>, D>
 ) => {
   const queryStore = useRef(useInitializeStore());
 
-  const options = usePackageOptions(optionsParams);
+  const options = usePackageOptions(optionsByParams);
 
-  const [promiseFunc] = useState(() => promiseFuncParams);
+  const [promiseFunc] = useState(() => promiseFuncByParams);
 
   const intervalId = useRef<number>();
 
@@ -246,6 +246,7 @@ const useSimpleQuery = <T, D, E>(
       queryStore.current.clearWaitRetry(options.cacheKey);
       innerRequest('MANUAL', options, params || options.params);
     },
+    requestAsync: promiseFuncByParams,
   };
 };
 

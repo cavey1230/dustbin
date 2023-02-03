@@ -28,6 +28,7 @@ importers:
       '@vitest/coverage-c8': ^0.28.3
       '@vitest/ui': ^0.27.3
       axios: ^1.1.3
+      dustbin: workspace:*
       eslint: ^8.31.0
       eslint-config-prettier: ^8.6.0
       eslint-plugin-prettier: ^4.2.1
@@ -43,7 +44,6 @@ importers:
       react-router-dom: ^6.4.3
       rollup: ^3.9.1
       rollup-plugin-dts: ^5.1.1
-      squery: workspace:*
       styled-components: ^5.3.6
       tslib: ^2.4.1
       typescript: ^4.9.4
@@ -75,6 +75,7 @@ importers:
       '@vitest/coverage-c8': 0.28.3_wisonnu234udalsgswp3rzd7rm
       '@vitest/ui': 0.27.3
       axios: 1.2.3
+      dustbin: link:packages/dustbin
       eslint: 8.31.0
       eslint-config-prettier: 8.6.0_eslint@8.31.0
       eslint-plugin-prettier: 4.2.1_iu5s7nk6dw7o3tajefwfiqfmge
@@ -90,7 +91,6 @@ importers:
       react-router-dom: 6.7.0_biqbaboplfbrettd7655fr4n2y
       rollup: 3.9.1
       rollup-plugin-dts: 5.1.1_esmavzhadgk2idmxtiodxm33ma
-      squery: link:packages/squery
       styled-components: 5.3.6_7i5myeigehqah43i5u7wbekgba
       tslib: 2.4.1
       typescript: 4.9.4
@@ -101,7 +101,7 @@ importers:
   packages/demo:
     specifiers: {}
 
-  packages/squery:
+  packages/dustbin:
     specifiers: {}
 
 packages:

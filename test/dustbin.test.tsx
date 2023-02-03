@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import App from '../packages/demo/src/AppForTest';
-import { SimpleQueryStore } from 'squery';
+import { SimpleQueryStore } from 'dustbin';
 
 export const sleep = (time?: number) => {
   return new Promise((resolve) => {

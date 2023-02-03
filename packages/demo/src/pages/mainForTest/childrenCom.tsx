@@ -1,4 +1,4 @@
-import useSimpleQuery from 'squery';
+import useSimpleQuery from 'dustbin';
 
 export default () => {
   const { data, request } = useSimpleQuery(

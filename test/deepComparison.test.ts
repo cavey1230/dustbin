@@ -1,4 +1,4 @@
-import { deepComparison } from 'squery';
+import { deepComparison } from 'dustbin';
 import { describe, expect, test } from 'vitest';
 
 describe('test with value type', () => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ChildrenCom from './childrenCom';
-import useSimpleQuery from 'squery';
+import useSimpleQuery from 'dustbin';
 
 import './sytle.css';
 
@@ -23,7 +23,7 @@ export default () => {
     type: 'success',
   });
 
-  const { data, loading, error, hasRequest, request, rollback } =
+  const { data, loading, error, hasRequest, request, rollback, requestAsync } =
     useSimpleQuery(
       (params?: {
         pageNum: number;
@@ -83,6 +83,7 @@ export default () => {
           }}>
           loop switch {loop.toString()}
         </button>
+
         <button
           data-testid={'requestPrev'}
           onClick={() => {
@@ -90,6 +91,7 @@ export default () => {
           }}>
           manual request prev
         </button>
+
         <button
           data-testid={'manualRequestPageNum3Success'}
           onClick={() => {
@@ -101,6 +103,7 @@ export default () => {
           }}>
           manual request page3 success
         </button>
+
         <button
           data-testid={'manualRequestPageNum4Fail'}
           onClick={() => {
@@ -112,6 +115,7 @@ export default () => {
           }}>
           manual request page4 fail
         </button>
+
         <button
           data-testid={'manualRequestPageNum4Success'}
           onClick={() => {
@@ -123,6 +127,7 @@ export default () => {
           }}>
           manual request page4 success
         </button>
+
         <button
           data-testid={'autoRequestPageNum4Success'}
           onClick={() => {
@@ -134,6 +139,7 @@ export default () => {
           }}>
           auto request page4 success
         </button>
+
         <button
           data-testid={'autoRequestPageNum5Success'}
           onClick={() => {
@@ -145,6 +151,17 @@ export default () => {
           }}>
           auto request page5 success
         </button>
+
+        <button
+          data-testid={'requestAsync'}
+          onClick={() => {
+            requestAsync({ pageNum: 999 }).then((res) => {
+              console.log(res);
+            });
+          }}>
+          requestAsync
+        </button>
+
         <button
           data-testid={'rollback'}
           onClick={() => {

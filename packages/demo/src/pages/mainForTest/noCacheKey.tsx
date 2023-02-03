@@ -1,4 +1,4 @@
-import useSimpleQuery from 'squery';
+import useSimpleQuery from 'dustbin';
 import requestMock from '../../mock/requestMock';
 import React, { useState } from 'react';
 

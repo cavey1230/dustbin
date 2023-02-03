@@ -6,7 +6,7 @@ import terser from '@rollup/plugin-terser';
 import { DEFAULT_EXTENSIONS } from '@babel/core';
 import pkg from './package.json';
 
-const name = 'squery';
+const name = 'dustbin';
 
 export default () => {
   const isProd = process.env.ENV === 'production';
