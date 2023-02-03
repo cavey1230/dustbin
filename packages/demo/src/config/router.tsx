@@ -1,22 +1,18 @@
 import React from 'react';
 import { Navigate, useRoutes } from 'react-router-dom';
 import PageNotFound from '../pages/pageNotFound';
-import Main from '../pages/main';
+import MainForTest from '../pages/mainForTest';
 import Empty from '../pages/empty';
 
 export default () => {
   return useRoutes([
     {
       path: '/',
-      element: <Navigate to={'login'} />,
+      element: <Navigate to={'mainForTest'} />,
     },
     {
-      path: '/login',
-      element: <Main />,
-    },
-    {
-      path: '/main',
-      element: <Main />,
+      path: '/mainForTest',
+      element: <MainForTest />,
     },
     {
       path: '/empty',

@@ -130,7 +130,8 @@ const useSimpleQuery = <T, D, E>(
 
         if (
           freshTime &&
-          requestTime - dataWithWrapper?.CREATE_TIME < freshTime &&
+          requestTime - dataWithWrapper?.CREATE_TIME <
+            (freshTime || 30 * 1000) &&
           deepComparison(innerParams, originData)
         ) {
           console.warn(
@@ -140,7 +141,6 @@ const useSimpleQuery = <T, D, E>(
           return;
         }
       }
-      setState({ data: true }, 'loading');
       consumer(
         promiseFunc,
         {
@@ -170,26 +170,22 @@ const useSimpleQuery = <T, D, E>(
   }, [innerRequest, options]);
 
   useEffect(() => {
-    const { auto, loop, cacheKey, loopInterval, params } = options;
-    const lastParams = queryStore.current.getLastParamsWithKey(cacheKey);
-
-    if (auto && loop) {
-      let canRequest = false;
-      queryStore.current.clearWaitRetry(options.cacheKey);
-      const innerParams = lastParams.originData || params;
-      const request = () => {
-        innerRequest('MANUAL', options, innerParams, () => {
-          canRequest = true;
-        });
-      };
-      clearInterval(intervalId.current);
+    const { auto, loop, loopInterval, params } = options;
+    if (!(auto && loop)) return;
+    let canRequest = false;
+    const request = () => {
+      innerRequest('MANUAL', options, params, () => {
+        canRequest = true;
+      });
+    };
+    clearInterval(intervalId.current);
+    request();
+    intervalId.current = setInterval(() => {
+      if (!canRequest) return;
+      canRequest = false;
       request();
-      intervalId.current = setInterval(() => {
-        if (!canRequest) return;
-        canRequest = false;
-        request();
-      }, loopInterval || 1000);
-    }
+    }, loopInterval || 1000);
+
     return () => {
       clearInterval(intervalId.current);
     };
@@ -197,34 +193,33 @@ const useSimpleQuery = <T, D, E>(
 
   useEffect(() => {
     const { retry, retryCount, retryInterval, cacheKey, handle } = options;
-    if (mode === 'RETRY' && retry) {
-      let canRequest = true;
-      let counter = 0;
-      clearInterval(intervalId.current);
-      const queue = queryStore.current.getWaitRetry(cacheKey);
-      const lastWaitRetry = queue?.slice(-1);
-      const params = lastWaitRetry?.[0]?.params;
-      queryStore.current.removeWaitRetry(cacheKey, lastWaitRetry);
-      intervalId.current = setInterval(() => {
-        if (!canRequest) return;
-        if (counter >= (retryCount || 1)) {
-          clearInterval(intervalId.current);
-          setMode('NORMAL');
-          queryStore.current.clearWaitRetry(options.cacheKey);
-          handle.onRetryComplete(cacheKey, new Date().getTime());
-          return;
-        }
-        counter += 1;
-        handle.onRetry(cacheKey, params, new Date().getTime(), counter);
-        canRequest = false;
-        innerRequest('MANUAL', options, params, () => {
-          canRequest = true;
-        });
-      }, retryInterval || 1000);
-      return () => {
+    if (!(mode === 'RETRY' && retry && cacheKey)) return;
+    let canRequest = true;
+    let counter = 0;
+    clearInterval(intervalId.current);
+    const queue = queryStore.current.getWaitRetry(cacheKey);
+    const lastWaitRetry = queue?.slice(-1);
+    const params = lastWaitRetry?.[0]?.params;
+    queryStore.current.removeWaitRetry(cacheKey, lastWaitRetry);
+    intervalId.current = setInterval(() => {
+      if (!canRequest) return;
+      if (counter >= (retryCount || 1)) {
         clearInterval(intervalId.current);
-      };
-    }
+        setMode('NORMAL');
+        queryStore.current.clearWaitRetry(options.cacheKey);
+        handle.onRetryComplete(cacheKey, new Date().getTime());
+        return;
+      }
+      counter += 1;
+      handle.onRetry(cacheKey, params, new Date().getTime(), counter);
+      canRequest = false;
+      innerRequest('MANUAL', options, params, () => {
+        canRequest = true;
+      });
+    }, retryInterval || 1000);
+    return () => {
+      clearInterval(intervalId.current);
+    };
   }, [innerRequest, mode, options, setMode]);
 
   return {
@@ -242,13 +237,14 @@ const useSimpleQuery = <T, D, E>(
     },
     hasRequest,
     rollback: () => {
+      if (options.loop) return;
       queryStore.current.clearWaitRetry(options.cacheKey);
       startBroadcast(options.cacheKey, 'pre');
       queryStore.current.reverseParams(options.cacheKey);
     },
     request: (params?: T) => {
       queryStore.current.clearWaitRetry(options.cacheKey);
-      innerRequest('MANUAL', options, params);
+      innerRequest('MANUAL', options, params || options.params);
     },
   };
 };

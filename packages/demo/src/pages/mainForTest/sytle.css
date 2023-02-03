@@ -1,0 +1,33 @@
+.wrapper{
+    margin: 10px 0;
+    border: 1px solid #666666;
+    padding: 20px;
+    border-radius: 20px;
+}
+
+.outWrapper{
+    padding: 20px;
+}
+
+.innerTips{
+    color: #666;
+    border-bottom: 1px solid #eeeeee;
+    font-size: 14px;
+}
+
+button{
+    background: #5fb09c;
+    outline: none;
+    border: none;
+    margin: 10px 0;
+    display: block;
+    padding: 10px;
+    border-radius: 10px;
+    color: white;
+}
+
+.tips{
+    font-size: 24px;
+    margin: 10px 0;
+    font-weight: bold;
+}

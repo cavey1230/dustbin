@@ -193,6 +193,8 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
 
       const originData = middlewareFactory('before', options);
       if (originData.stop) return;
+
+      setState({ data: true }, 'loading');
       promise(params)
         ?.then((result) => {
           if (cacheKey) {
