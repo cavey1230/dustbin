@@ -1,7 +1,7 @@
 {
   "name": "dustbin-react",
-  "version": "0.0.1",
-  "description": "",
+  "version": "1.0.0",
+  "description": "React Hooks library for remote data fetching",
   "main": "./build/index.js",
   "module": "./build/index.esm.js",
   "umd": "./build/index.umd.js",
@@ -15,8 +15,12 @@
   },
   "keywords": [
     "react",
-    "query",
-    "storage"
+    "state libs",
+    "hooks",
+    "request",
+    "cache",
+    "fetch",
+    "restful request libs"
   ],
   "author": "cavey1230",
   "license": "MIT",
