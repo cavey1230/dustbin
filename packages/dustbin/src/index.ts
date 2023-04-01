@@ -141,7 +141,7 @@ const useSimpleQuery = <T, D, E>(
           return;
         }
       }
-      consumer(
+      return consumer(
         promiseFunc,
         {
           params: innerParams,
@@ -244,7 +244,7 @@ const useSimpleQuery = <T, D, E>(
     },
     request: (params?: T) => {
       queryStore.current.clearWaitRetry(options.cacheKey);
-      innerRequest('MANUAL', options, params || options.params);
+      return innerRequest('MANUAL', options, params || options.params);
     },
     requestAsync: promiseFuncByParams,
   };

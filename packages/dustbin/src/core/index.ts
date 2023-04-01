@@ -195,7 +195,7 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
       if (originData.stop) return;
 
       setState({ data: true }, 'loading');
-      promise(params)
+      return promise(params)
         ?.then((result) => {
           if (cacheKey) {
             const { dataWithWrapper } =
@@ -215,6 +215,10 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
             optionsHandle?.onSuccess?.(params, result);
             startBroadcast(cacheKey, 'last');
           }
+          return {
+            params,
+            result,
+          };
         })
         .catch((reason) => {
           if (!isUnmount.current) {
