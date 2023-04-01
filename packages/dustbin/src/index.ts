@@ -105,7 +105,7 @@ const useSimpleQuery = <T, D, E>(
       outOptions: typeof options,
       params: T,
       finishCallback?: () => void
-    ) => {
+    ): Promise<undefined | D> => {
       const {
         cacheKey,
         params: optionsParams,
@@ -138,7 +138,7 @@ const useSimpleQuery = <T, D, E>(
             'Hit caches. If you need to get the latest response data,' +
               ' please manually run the exported [request] function'
           );
-          return;
+          return Promise.resolve(undefined);
         }
       }
       return consumer(

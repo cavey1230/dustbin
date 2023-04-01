@@ -188,7 +188,7 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
         },
         type: keyof UseWatchStateInitializeOptions
       ) => void
-    ) => {
+    ): Promise<undefined | D> => {
       const { params, cacheKey, requestTime, handle: optionsHandle } = options;
 
       const originData = middlewareFactory('before', options);
@@ -196,18 +196,18 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
 
       setState({ data: true }, 'loading');
       return promise(params)
-        ?.then((result) => {
+        .then((result) => {
           if (cacheKey) {
             const { dataWithWrapper } =
               queryStore.current.getLastParamsWithKey(cacheKey);
             if (dataWithWrapper && requestTime < dataWithWrapper.REQUEST_TIME) {
-              return;
+              return undefined;
             }
           }
           if (!isUnmount.current) {
             setMode('NORMAL');
             const originData = middlewareFactory('after', options, result);
-            if (originData.stop) return;
+            if (originData.stop) return undefined;
             setState(
               { data: originData.result, params, REQUEST_TIME: requestTime },
               'data'
@@ -215,10 +215,7 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
             optionsHandle?.onSuccess?.(params, result);
             startBroadcast(cacheKey, 'last');
           }
-          return {
-            params,
-            result,
-          };
+          return result;
         })
         .catch((reason) => {
           if (!isUnmount.current) {
@@ -232,6 +229,7 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
             setState({ data: reason }, 'error');
             optionsHandle?.onFail?.(params, reason);
           }
+          return undefined;
         })
         .finally(() => {
           if (!isUnmount.current) {
