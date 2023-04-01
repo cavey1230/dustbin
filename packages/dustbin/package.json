@@ -1,6 +1,6 @@
 {
   "name": "dustbin-react",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "React Hooks library for remote data fetching",
   "main": "./build/index.js",
   "module": "./build/index.esm.js",
