@@ -192,7 +192,7 @@ export const usePromiseConsumer = <T, D>(cacheKey: string) => {
       const { params, cacheKey, requestTime, handle: optionsHandle } = options;
 
       const originData = middlewareFactory('before', options);
-      if (originData.stop) return;
+      if (originData.stop) return Promise.reject('stop by middleware');
 
       setState({ data: true }, 'loading');
       return promise(params)
