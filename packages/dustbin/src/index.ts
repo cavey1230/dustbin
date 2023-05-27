@@ -28,6 +28,7 @@ export type QueryOptions<T, CD, D> = {
   retryInterval?: number;
   params?: T;
   initializeData?: CD;
+  hideHitCacheTips?: boolean;
   auto: boolean;
   use?: Array<UseItem<T, D>>;
   handle?: {
@@ -112,6 +113,7 @@ const useSimpleQuery = <T, D, E>(
         freshTime,
         use,
         handle,
+        hideHitCacheTips,
       } = outOptions;
       const requestTime = new Date().getTime();
       const lastRequestParams =
@@ -134,10 +136,11 @@ const useSimpleQuery = <T, D, E>(
             (freshTime || 30 * 1000) &&
           deepComparison(innerParams, originData)
         ) {
-          console.warn(
-            'Hit caches. If you need to get the latest response data,' +
-              ' please manually run the exported [request] function'
-          );
+          !hideHitCacheTips &&
+            console.warn(
+              'Hit caches. If you need to get the latest response data,' +
+                ' please manually run the exported [request] function'
+            );
           return Promise.resolve(undefined);
         }
       }

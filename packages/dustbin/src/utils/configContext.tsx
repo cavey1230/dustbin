@@ -14,6 +14,7 @@ export type ContextConfig = {
   retryCount?: number;
   retryInterval?: number;
   loopInterval?: number;
+  hideHitCacheTips?: boolean;
   use?: QueryOptions<any, ChildrenPartial<any>, any>['use'];
   handle?: {
     onSuccess?: (params: any, data: any) => void;
